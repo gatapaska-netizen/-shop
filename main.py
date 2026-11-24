@@ -10,7 +10,7 @@ from aiogram.enums import ParseMode, ChatType
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    PreCheckoutQuery, LabeledPrice
+    PreCheckoutQuery, LabeledPrice, FSInputFile
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
@@ -27,12 +27,12 @@ SUPPORT_USERNAME = "@velsogod"
 
 URL_OFFER = "https://telegra.ph/Publichnaya-oferta-Velso-Shop-11-23"
 URL_RULES = "https://telegra.ph/Pravila-Ispolzovaniya-Velso-Shop-11-24"
-URL_PRIVACY = "https://telegra.ph/Politika-konfidencialnosti-Velso-Shop"  # заглушка, замени когда будет
+URL_PRIVACY = "https://telegra.ph/Politika-konfidencialnosti-Velso-Shop"
 
 # ===== ДИСПЕТЧЕР =====
 dp = Dispatcher(storage=MemoryStorage())
 
-# ===== БАЗА ДАННЫХ (SQLite) =====
+# ===== БАЗА ДАННЫХ =====
 DB_PATH = "velso.db"
 
 def init_db():
@@ -71,6 +71,13 @@ def init_db():
         amount REAL,
         uses_left INTEGER
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS order_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER,
+        from_user_id INTEGER,
+        text TEXT,
+        created_at TEXT
+    )""")
     conn.commit()
     conn.close()
 
@@ -107,99 +114,104 @@ def add_balance(user_id, amount):
     conn.commit()
     conn.close()
 
-# ===== СОСТОЯНИЯ FSM =====
+def save_order_message(order_id, from_user_id, text):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT INTO order_messages (order_id, from_user_id, text, created_at) VALUES (?, ?, ?, ?)",
+              (order_id, from_user_id, text, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+# ===== СОСТОЯНИЯ =====
 class States(StatesGroup):
     waiting_amount = State()
     waiting_promocode = State()
     admin_add_item = State()
     admin_add_promo = State()
     admin_broadcast = State()
+    order_chat = State()          # юзер пишет в чат заказа
+    admin_reply = State()         # админ отвечает по заказу
 
-# ===== ТЕКСТЫ =====
+# ===== ТЕКСТЫ (с жирным и цитатами) =====
 TEXTS = {
     "ru": {
-        "choose_lang": "Выбери язык / Choose language:",
+        "choose_lang": "🌐 <b>Выбери язык</b> / <i>Choose language</i>:",
         "consent": (
+            "📜 <b>Публичная оферта</b>\n\n"
             "Используешь бота, приобретаешь услуги — значит согласен с публичной офертой:\n\n"
             f"✅ <a href='{URL_PRIVACY}'>Политика конфиденциальности</a>\n\n"
             f"❗️<a href='{URL_RULES}'>Правила использования</a>\n\n"
-            "Ссылки 🔗 кликабельны."
+            "<blockquote>🔗 Ссылки кликабельны. Нажми «Принимаю», чтобы продолжить.</blockquote>"
         ),
         "accept": "✅ Принимаю",
-        "subscribe_text": "Для использования бота подпишись на каналы:",
-        "sub_btn": "🛒 Velso Shop",
-        "check_sub": "✅ Проверить подписку",
-        "not_sub": "Ты ещё не подписался. Подпишись и нажми «Проверить подписку».",
-        "menu": "Меню",
-        "services": "Услуги",
-        "goods": "Товар",
-        "offer": "Оферта",
-        "profile": "Профиль",
-        "support": "Поддержка",
-        "referrals": "Рефералы",
-        "back": "◀️ Назад",
-        "cancel": "❌ Отмена",
-        "pay": "💳 Оплатить",
-        "topup": "💰 Пополнить",
-        "enter_amount": "Введи сумму в USD для пополнения:",
-        "choose_payment": "Выбери способ оплаты:",
-        "pay_xrocket": "Оплатить через xRocket",
-        "pay_cryptobot": "Оплатить через CryptoBot",
-        "invoice_created": "Счёт создан! Перейди по ссылке для оплаты:\n{link}",
-        "payment_error": "Ошибка создания счёта. Попробуй позже.",
+        "subscribe_text": (
+            "📢 <b>Обязательная подписка</b>\n\n"
+            "Для использования бота подпишись на канал:\n\n"
+            "<blockquote>🛒 <b>Velso Shop</b> — новости, акции, обновления.</blockquote>\n\n"
+            "После подписки нажми <b>«✅ Проверить подписку»</b>."
+        ),
+        "menu": (
+            "🏠 <b>Меню</b>\n\n"
+            "<blockquote>🛍 Каталог — услуги и товары\n"
+            "👤 Профиль — баланс и заказы\n"
+            "🔗 Рефералы — 10% с пополнений\n"
+            "📜 Оферта — условия\n"
+            "🆘 Поддержка — связь с нами</blockquote>"
+        ),
+        "catalog": "🛍 <b>Каталог</b>\n\n<blockquote>Выбери раздел:</blockquote>",
         "profile_text": (
             "👤 <b>Профиль</b>\n\n"
-            "🆔 ID: <code>{user_id}</code>\n"
+            "<blockquote>🆔 ID: <code>{user_id}</code>\n"
             "💰 Баланс: <b>{balance} USD</b>\n"
             "🌐 Язык: {lang}\n"
-            "🏆 Статус: {status}\n"
+            "🏆 Статус: <b>{status}</b>\n"
             "📅 Дата регистрации: {reg_date}\n"
-            "👥 Рефералов: {ref_count}"
+            "👥 Рефералов: {ref_count}</blockquote>"
         ),
         "ref_text": (
             "🔗 <b>Реферальная система</b>\n\n"
             "Твоя ссылка:\n<code>{ref_link}</code>\n\n"
-            "👥 Приглашено: {ref_count}\n"
-            "💰 Заработано: {earned} USD (10% с пополнений рефералов)"
+            "<blockquote>👥 Приглашено: <b>{ref_count}</b>\n"
+            "💰 Заработано: <b>{earned} USD</b> (10% с пополнений рефералов)</blockquote>"
         ),
-        "orders_history": "📋 Мои заказы",
-        "no_orders": "У тебя пока нет заказов.",
-        "services_list": "📦 <b>Услуги:</b>",
-        "goods_list": "🛍 <b>Товар:</b>",
-        "empty_list": "Пока пусто.",
-        "buy_btn": "Купить за {price} USD",
-        "insufficient": "Недостаточно средств. Пополни баланс.",
-        "order_created": "Заказ создан! Ожидай выполнения.",
-        "goods_delivered": "Товар выдан:\n{content}",
+        "orders_history": "📋 <b>Мои заказы</b>",
+        "no_orders": "📭 <blockquote>У тебя пока нет заказов.</blockquote>",
+        "services_list": "📦 <b>Услуги:</b>\n\n<blockquote>Выбери услугу и нажми «Купить».</blockquote>",
+        "goods_list": "🛍 <b>Товар:</b>\n\n<blockquote>Выбери товар и нажми «Купить». Выдаётся автоматически.</blockquote>",
+        "empty_list": "📭 <blockquote>Пока пусто.</blockquote>",
+        "order_created": (
+            "⏳ <b>Заказ создан!</b>\n\n"
+            "<blockquote>Ожидай выполнения. Если нужно что-то уточнить — напиши в чат по заказу.</blockquote>"
+        ),
+        "goods_delivered": "🎁 <b>Товар выдан:</b>\n\n<blockquote>{content}</blockquote>",
+        "order_chat_prompt": "💬 <b>Чат по заказу #{order_id}</b>\n\n<blockquote>Напиши сообщение — админ увидит его и ответит.</blockquote>",
+        "order_chat_sent": "✅ <blockquote>Сообщение отправлено админу. Ожидай ответа.</blockquote>",
         "admin_panel": "⚙️ <b>Админ-панель</b>",
-        "admin_add_service": "➕ Добавить услугу",
-        "admin_add_goods": "➕ Добавить товар",
-        "admin_orders": "📋 Заказы",
-        "admin_stats": "📊 Статистика",
-        "admin_broadcast": "📢 Рассылка",
-        "admin_promo": "🎟 Промокоды",
-        "admin_enter_name": "Введи название:",
-        "admin_enter_desc": "Введи описание:",
-        "admin_enter_price": "Введи цену в USD:",
-        "admin_enter_content": "Введи контент (для товара):",
-        "admin_item_added": "✅ Добавлено!",
-        "admin_no_orders": "Заказов нет.",
-        "admin_order_accept": "✅ Выполнено",
-        "admin_order_reject": "❌ Не выполнено",
-        "admin_reject_reason": "Введи причину отказа:",
-        "admin_stats_text": "👥 Юзеров: {users}\n📦 Заказов: {orders}\n💰 Оборот: {turnover} USD",
-        "admin_broadcast_text": "Введи текст рассылки:",
-        "admin_broadcast_sent": "✅ Отправлено {count} юзерам.",
-        "admin_promo_code": "Введи код:",
-        "admin_promo_amount": "Введи сумму бонуса:",
-        "admin_promo_uses": "Введи кол-во использований:",
-        "admin_promo_added": "✅ Промокод добавлен!",
-        "promo_enter": "Введи промокод:",
-        "promo_success": "✅ Промокод активирован! +{amount} USD",
-        "promo_invalid": "❌ Неверный или использованный промокод.",
-        "order_done_notify": "✅ Твой заказ «{name}» выполнен!",
-        "order_reject_notify": "❌ Заказ «{name}» отклонён. Причина: {reason}",
-        "already": "Ты уже принял условия. Добро пожаловать! 🚀",
+        "admin_enter_name": "📝 <b>Введи название:</b>",
+        "admin_enter_desc": "📝 <b>Введи описание:</b>",
+        "admin_enter_price": "💵 <b>Введи цену в USD:</b>",
+        "admin_enter_content": "📦 <b>Введи контент (для товара):</b>",
+        "admin_item_added": "✅ <b>Добавлено!</b>",
+        "admin_no_orders": "📭 <blockquote>Заказов нет.</blockquote>",
+        "admin_reject_reason": "✍️ <b>Введи причину отказа:</b>",
+        "admin_stats_text": (
+            "📊 <b>Статистика</b>\n\n"
+            "<blockquote>👥 Юзеров: <b>{users}</b>\n"
+            "📦 Заказов: <b>{orders}</b>\n"
+            "💰 Оборот: <b>{turnover} USD</b></blockquote>"
+        ),
+        "admin_broadcast_text": "📢 <b>Введи текст рассылки:</b>",
+        "admin_broadcast_sent": "✅ <blockquote>Отправлено <b>{count}</b> юзерам.</blockquote>",
+        "admin_promo_code": "🎟 <b>Введи код:</b>",
+        "admin_promo_amount": "💰 <b>Введи сумму бонуса:</b>",
+        "admin_promo_uses": "🔢 <b>Введи кол-во использований:</b>",
+        "admin_promo_added": "✅ <b>Промокод добавлен!</b>",
+        "promo_enter": "🎟 <b>Введи промокод:</b>",
+        "promo_success": "✅ <blockquote>Промокод активирован! <b>+{amount} USD</b></blockquote>",
+        "promo_invalid": "❌ <blockquote>Неверный или использованный промокод.</blockquote>",
+        "order_done_notify": "✅ <b>Твой заказ «{name}» выполнен!</b>",
+        "order_reject_notify": "❌ <b>Заказ «{name}» отклонён.</b>\n\n<blockquote>Причина: {reason}</blockquote>",
+        "already": "🚀 <b>Ты уже принял условия. Добро пожаловать!</b>",
     }
 }
 
@@ -213,7 +225,7 @@ def lang_kb():
 
 def accept_kb():
     kb = InlineKeyboardBuilder()
-    kb.button(text=TEXTS["ru"]["accept"], callback_data="accept", style="success")
+    kb.button(text="✅ Принимаю", callback_data="accept", style="success")
     return kb.as_markup()
 
 def sub_kb():
@@ -225,13 +237,20 @@ def sub_kb():
 
 def menu_kb():
     kb = InlineKeyboardBuilder()
-    kb.button(text="Услуги", callback_data="menu_services")
-    kb.button(text="Товар", callback_data="menu_goods")
-    kb.button(text="Оферта", url=URL_OFFER)
-    kb.button(text="Профиль", callback_data="menu_profile")
-    kb.button(text="Поддержка", url=f"https://t.me/{SUPPORT_USERNAME.replace('@','')}")
-    kb.button(text="Рефералы", callback_data="menu_refs")
-    kb.adjust(2, 2, 2)
+    kb.button(text="🛍 Каталог", callback_data="menu_catalog")
+    kb.button(text="👤 Профиль", callback_data="menu_profile")
+    kb.button(text="🔗 Рефералы", callback_data="menu_refs")
+    kb.button(text="📜 Оферта", url=URL_OFFER)
+    kb.button(text="🆘 Поддержка", url=f"https://t.me/{SUPPORT_USERNAME.replace('@','')}")
+    kb.adjust(1, 2, 2)
+    return kb.as_markup()
+
+def catalog_kb():
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📦 Услуги", callback_data="menu_services")
+    kb.button(text="🛍 Товар", callback_data="menu_goods")
+    kb.button(text="◀️ Назад", callback_data="back_to_menu")
+    kb.adjust(2, 1)
     return kb.as_markup()
 
 def back_kb():
@@ -246,13 +265,6 @@ def profile_kb():
     kb.button(text="📋 Мои заказы", callback_data="my_orders")
     kb.button(text="◀️ Назад", callback_data="back_to_menu")
     kb.adjust(2, 1, 1)
-    return kb.as_markup()
-
-def topup_kb():
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Оплатить", callback_data="pay_invoice", style="success")
-    kb.button(text="❌ Отмена", callback_data="cancel_topup", style="danger")
-    kb.adjust(1)
     return kb.as_markup()
 
 def payment_method_kb():
@@ -275,10 +287,20 @@ def admin_kb():
     return kb.as_markup()
 
 def admin_order_kb(order_id):
+    """Кнопки для админа по заказу: ответить, выполнено, не выполнено"""
     kb = InlineKeyboardBuilder()
+    kb.button(text="💬 Ответить", callback_data=f"order_reply:{order_id}", style="primary")
     kb.button(text="✅ Выполнено", callback_data=f"order_done:{order_id}", style="success")
     kb.button(text="❌ Не выполнено", callback_data=f"order_reject:{order_id}", style="danger")
-    kb.adjust(2)
+    kb.adjust(1, 2)
+    return kb.as_markup()
+
+def order_chat_kb(order_id):
+    """Кнопка для юзера — написать в чат заказа"""
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💬 Написать по заказу", callback_data=f"chat_order:{order_id}", style="primary")
+    kb.button(text="◀️ В каталог", callback_data="menu_catalog")
+    kb.adjust(1, 1)
     return kb.as_markup()
 
 # ===== ХЕЛПЕРЫ =====
@@ -289,8 +311,44 @@ async def check_sub(bot: Bot, user_id: int) -> bool:
     except Exception:
         return False
 
-def get_main_menu_text(lang="ru"):
-    return TEXTS[lang]["menu"]
+async def send_consent(bot: Bot, chat_id: int, lang="ru", edit_message: Message = None):
+    try:
+        photo = FSInputFile("prav.png")
+        await bot.send_photo(chat_id=chat_id, photo=photo,
+                             caption=TEXTS[lang]["consent"], reply_markup=accept_kb())
+        if edit_message:
+            await edit_message.delete()
+    except Exception:
+        if edit_message:
+            await edit_message.edit_text(TEXTS[lang]["consent"], reply_markup=accept_kb(), disable_web_page_preview=True)
+        else:
+            await bot.send_message(chat_id, TEXTS[lang]["consent"], reply_markup=accept_kb(), disable_web_page_preview=True)
+
+async def send_subscribe(bot: Bot, chat_id: int, lang="ru", edit_message: Message = None):
+    try:
+        photo = FSInputFile("podp.png")
+        await bot.send_photo(chat_id=chat_id, photo=photo,
+                             caption=TEXTS[lang]["subscribe_text"], reply_markup=sub_kb())
+        if edit_message:
+            await edit_message.delete()
+    except Exception:
+        if edit_message:
+            await edit_message.edit_text(TEXTS[lang]["subscribe_text"], reply_markup=sub_kb())
+        else:
+            await bot.send_message(chat_id, TEXTS[lang]["subscribe_text"], reply_markup=sub_kb())
+
+async def send_menu(bot: Bot, chat_id: int, lang="ru", edit_message: Message = None):
+    try:
+        photo = FSInputFile("main.png")
+        await bot.send_photo(chat_id=chat_id, photo=photo,
+                             caption=TEXTS[lang]["menu"], reply_markup=menu_kb())
+        if edit_message:
+            await edit_message.delete()
+    except Exception:
+        if edit_message:
+            await edit_message.edit_text(TEXTS[lang]["menu"], reply_markup=menu_kb())
+        else:
+            await bot.send_message(chat_id, TEXTS[lang]["menu"], reply_markup=menu_kb())
 
 # ===== ХЕНДЛЕРЫ =====
 
@@ -313,9 +371,9 @@ async def cmd_start(message: Message, state: FSMContext):
     if user[4]:  # accepted
         if await check_sub(message.bot, uid):
             update_user(uid, subscribed=1)
-            await message.answer(TEXTS[user[1]]["menu"], reply_markup=menu_kb())
+            await send_menu(message.bot, message.chat.id, user[1])
         else:
-            await message.answer(TEXTS[user[1]]["subscribe_text"], reply_markup=sub_kb())
+            await send_subscribe(message.bot, message.chat.id, user[1])
         return
 
     await message.answer(TEXTS["ru"]["choose_lang"], reply_markup=lang_kb())
@@ -325,11 +383,7 @@ async def on_lang(callback: CallbackQuery):
     lang = callback.data.split(":")[1]
     uid = callback.from_user.id
     update_user(uid, lang=lang)
-    await callback.message.edit_text(
-        TEXTS[lang]["consent"],
-        reply_markup=accept_kb(),
-        disable_web_page_preview=True
-    )
+    await send_consent(callback.bot, callback.from_user.id, lang, edit_message=callback.message)
     await callback.answer()
 
 @dp.callback_query(F.data == "accept")
@@ -339,10 +393,7 @@ async def on_accept(callback: CallbackQuery):
     user = get_user(uid)
     lang = user[1] if user else "ru"
     await callback.message.delete()
-    await callback.message.answer(
-        TEXTS[lang]["subscribe_text"],
-        reply_markup=sub_kb()
-    )
+    await send_subscribe(callback.bot, callback.from_user.id, lang)
     await callback.answer()
 
 @dp.callback_query(F.data == "check_sub")
@@ -352,17 +403,27 @@ async def on_check_sub(callback: CallbackQuery):
     lang = user[1] if user else "ru"
     if await check_sub(callback.bot, uid):
         update_user(uid, subscribed=1)
-        await callback.message.edit_text(TEXTS[lang]["menu"], reply_markup=menu_kb())
+        await callback.message.delete()
+        await send_menu(callback.bot, callback.from_user.id, lang)
         await callback.answer("✅ Подписка подтверждена!")
     else:
-        await callback.answer(TEXTS[lang]["not_sub"], show_alert=True)
+        await callback.answer("❌ Ты ещё не подписался.", show_alert=True)
 
 @dp.callback_query(F.data == "back_to_menu")
 async def on_back(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    await callback.message.edit_text(TEXTS[lang]["menu"], reply_markup=menu_kb())
+    await callback.message.delete()
+    await send_menu(callback.bot, callback.from_user.id, lang)
+    await callback.answer()
+
+# ===== КАТАЛОГ =====
+@dp.callback_query(F.data == "menu_catalog")
+async def on_catalog(callback: CallbackQuery):
+    user = get_user(callback.from_user.id)
+    lang = user[1] if user else "ru"
+    await callback.message.edit_text(TEXTS[lang]["catalog"], reply_markup=catalog_kb())
     await callback.answer()
 
 # ===== ПРОФИЛЬ =====
@@ -377,9 +438,7 @@ async def on_profile(callback: CallbackQuery):
     ref_count = c.fetchone()[0]
     conn.close()
     text = TEXTS[lang]["profile_text"].format(
-        user_id=uid,
-        balance=user[2],
-        lang=user[1],
+        user_id=uid, balance=user[2], lang=user[1],
         status=user[7] or "Новичок",
         reg_date=user[6][:10] if user[6] else "—",
         ref_count=ref_count
@@ -403,13 +462,13 @@ async def on_amount(message: Message, state: FSMContext):
         if amount <= 0:
             raise ValueError
     except:
-        await message.answer("Введи корректную сумму (число больше 0):")
+        await message.answer("⚠️ <b>Введи корректную сумму</b> (число больше 0):")
         return
     await state.update_data(amount=amount)
     user = get_user(message.from_user.id)
     lang = user[1] if user else "ru"
     await message.answer(
-        f"Сумма: {amount} USD\n\n{TEXTS[lang]['choose_payment']}",
+        f"💵 <b>Сумма:</b> {amount} USD\n\n{TEXTS[lang]['choose_payment']}",
         reply_markup=payment_method_kb()
     )
 
@@ -426,9 +485,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
             from aiorocket2 import xRocketClient
             client = xRocketClient(api_key=XROCKET_TOKEN)
             invoice = await client.create_invoice(
-                amount=amount,
-                min_payment=0,
-                num_payments=1,
+                amount=amount, min_payment=0, num_payments=1,
                 description=f"Пополнение Velso Shop на {amount} USD",
                 hidden_message="Спасибо за оплату!"
             )
@@ -439,8 +496,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
             crypto = CryptoPayApi(CRYPTOBOT_TOKEN)
             async with crypto:
                 invoice = await crypto.create_invoice(
-                    currency_type=CurrencyType.FIAT,
-                    fiat=FiatAsset.USD,
+                    currency_type=CurrencyType.FIAT, fiat=FiatAsset.USD,
                     amount=amount,
                     description=f"Пополнение Velso Shop на {amount} USD"
                 )
@@ -462,7 +518,8 @@ async def on_cancel_topup(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     user = get_user(callback.from_user.id)
     lang = user[1] if user else "ru"
-    await callback.message.edit_text(TEXTS[lang]["menu"], reply_markup=menu_kb())
+    await callback.message.delete()
+    await send_menu(callback.bot, callback.from_user.id, lang)
     await callback.answer()
 
 # ===== РЕФЕРАЛЫ =====
@@ -485,8 +542,7 @@ async def on_refs(callback: CallbackQuery):
 # ===== УСЛУГИ / ТОВАР =====
 @dp.callback_query(F.data == "menu_services")
 async def on_services(callback: CallbackQuery):
-    uid = callback.from_user.id
-    user = get_user(uid)
+    user = get_user(callback.from_user.id)
     lang = user[1] if user else "ru"
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -494,22 +550,21 @@ async def on_services(callback: CallbackQuery):
     items = c.fetchall()
     conn.close()
     if not items:
-        await callback.message.edit_text(TEXTS[lang]["empty_list"], reply_markup=back_kb())
+        await callback.message.edit_text(TEXTS[lang]["empty_list"], reply_markup=catalog_kb())
     else:
         kb = InlineKeyboardBuilder()
         text = TEXTS[lang]["services_list"] + "\n\n"
         for item in items:
-            text += f"• {item[1]} — {item[2]} USD\n"
-            kb.button(text=f"Купить «{item[1]}»", callback_data=f"buy:service:{item[0]}")
-        kb.button(text="◀️ Назад", callback_data="back_to_menu")
+            text += f"• <b>{item[1]}</b> — {item[2]} USD\n"
+            kb.button(text=f"🛒 Купить «{item[1]}»", callback_data=f"buy:service:{item[0]}")
+        kb.button(text="◀️ Назад", callback_data="menu_catalog")
         kb.adjust(1)
         await callback.message.edit_text(text, reply_markup=kb.as_markup())
     await callback.answer()
 
 @dp.callback_query(F.data == "menu_goods")
 async def on_goods(callback: CallbackQuery):
-    uid = callback.from_user.id
-    user = get_user(uid)
+    user = get_user(callback.from_user.id)
     lang = user[1] if user else "ru"
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -517,14 +572,14 @@ async def on_goods(callback: CallbackQuery):
     items = c.fetchall()
     conn.close()
     if not items:
-        await callback.message.edit_text(TEXTS[lang]["empty_list"], reply_markup=back_kb())
+        await callback.message.edit_text(TEXTS[lang]["empty_list"], reply_markup=catalog_kb())
     else:
         kb = InlineKeyboardBuilder()
         text = TEXTS[lang]["goods_list"] + "\n\n"
         for item in items:
-            text += f"• {item[1]} — {item[2]} USD\n"
-            kb.button(text=f"Купить «{item[1]}»", callback_data=f"buy:goods:{item[0]}")
-        kb.button(text="◀️ Назад", callback_data="back_to_menu")
+            text += f"• <b>{item[1]}</b> — {item[2]} USD\n"
+            kb.button(text=f"🛒 Купить «{item[1]}»", callback_data=f"buy:goods:{item[0]}")
+        kb.button(text="◀️ Назад", callback_data="menu_catalog")
         kb.adjust(1)
         await callback.message.edit_text(text, reply_markup=kb.as_markup())
     await callback.answer()
@@ -546,7 +601,7 @@ async def on_buy(callback: CallbackQuery):
         return
     name, price, content = item
     if user[2] < price:
-        await callback.answer(TEXTS[lang]["insufficient"], show_alert=True)
+        await callback.answer("❌ Недостаточно средств. Пополни баланс.", show_alert=True)
         return
     add_balance(uid, -price)
     if item_type == "goods":
@@ -556,7 +611,7 @@ async def on_buy(callback: CallbackQuery):
                   (uid, item_type, name, price, datetime.now().isoformat()))
         conn.commit()
         conn.close()
-        await callback.message.edit_text(TEXTS[lang]["goods_delivered"].format(content=content), reply_markup=back_kb())
+        await callback.message.edit_text(TEXTS[lang]["goods_delivered"].format(content=content), reply_markup=catalog_kb())
     else:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -568,13 +623,102 @@ async def on_buy(callback: CallbackQuery):
         try:
             await callback.bot.send_message(
                 ADMIN_ID,
-                f"🆕 Новый заказ #{order_id}\n\nЮзер: {uid}\nУслуга: {name}\nЦена: {price} USD",
+                f"🆕 <b>Новый заказ #{order_id}</b>\n\n"
+                f"<blockquote>👤 Юзер: <code>{uid}</code>\n"
+                f"📦 Услуга: <b>{name}</b>\n"
+                f"💰 Цена: <b>{price} USD</b></blockquote>\n\n"
+                f"Нажми «💬 Ответить», чтобы написать юзеру.",
                 reply_markup=admin_order_kb(order_id)
             )
         except:
             pass
-        await callback.message.edit_text(TEXTS[lang]["order_created"], reply_markup=back_kb())
+        await callback.message.edit_text(
+            TEXTS[lang]["order_created"] + f"\n\n🆔 Заказ: <b>#{order_id}</b>",
+            reply_markup=order_chat_kb(order_id)
+        )
     await callback.answer()
+
+# ===== ЧАТ ПО ЗАКАЗУ (ЮЗЕР) =====
+@dp.callback_query(F.data.startswith("chat_order:"))
+async def on_chat_order(callback: CallbackQuery, state: FSMContext):
+    order_id = int(callback.data.split(":")[1])
+    user = get_user(callback.from_user.id)
+    lang = user[1] if user else "ru"
+    await state.set_state(States.order_chat)
+    await state.update_data(order_id=order_id)
+    await callback.message.edit_text(
+        TEXTS[lang]["order_chat_prompt"].format(order_id=order_id),
+        reply_markup=back_kb()
+    )
+    await callback.answer()
+
+@dp.message(States.order_chat)
+async def on_order_chat_message(message: Message, state: FSMContext):
+    data = await state.get_data()
+    order_id = data.get("order_id")
+    uid = message.from_user.id
+    user = get_user(uid)
+    lang = user[1] if user else "ru"
+    text = message.text
+
+    save_order_message(order_id, uid, text)
+
+    # Пересылаем админу
+    try:
+        await message.bot.send_message(
+            ADMIN_ID,
+            f"💬 <b>Сообщение по заказу #{order_id}</b>\n\n"
+            f"<blockquote>👤 От: <code>{uid}</code>\n"
+            f"📝 {text}</blockquote>",
+            reply_markup=admin_order_kb(order_id)
+        )
+    except:
+        pass
+
+    await message.answer(TEXTS[lang]["order_chat_sent"], reply_markup=back_kb())
+    await state.clear()
+
+# ===== ОТВЕТ АДМИНА ПО ЗАКАЗУ =====
+@dp.callback_query(F.data.startswith("order_reply:"))
+async def on_order_reply(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    order_id = int(callback.data.split(":")[1])
+    await state.set_state(States.admin_reply)
+    await state.update_data(reply_order_id=order_id)
+    await callback.message.edit_text(f"💬 <b>Ответ по заказу #{order_id}</b>\n\nНапиши текст ответа:")
+    await callback.answer()
+
+@dp.message(States.admin_reply)
+async def on_admin_reply(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    data = await state.get_data()
+    order_id = data.get("reply_order_id")
+    text = message.text
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM orders WHERE id = ?", (order_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        uid = row[0]
+        save_order_message(order_id, ADMIN_ID, text)
+        try:
+            await message.bot.send_message(
+                uid,
+                f"💬 <b>Ответ по заказу #{order_id}</b>\n\n"
+                f"<blockquote>📝 {text}</blockquote>",
+                reply_markup=order_chat_kb(order_id)
+            )
+        except:
+            pass
+        await message.answer(f"✅ Ответ отправлен юзеру по заказу #{order_id}.")
+    else:
+        await message.answer("❌ Заказ не найден.")
+    await state.clear()
 
 # ===== АДМИНКА =====
 @dp.message(Command("admin"))
@@ -639,7 +783,7 @@ async def admin_item_step(message: Message, state: FSMContext):
         try:
             price = float(message.text.replace(",", "."))
         except:
-            await message.answer("Введи число:")
+            await message.answer("⚠️ Введи число:")
             return
         await state.update_data(price=price, step="content")
         await message.answer(TEXTS["ru"]["admin_enter_content"])
@@ -673,7 +817,10 @@ async def admin_orders(callback: CallbackQuery):
         for o in orders:
             await callback.bot.send_message(
                 ADMIN_ID,
-                f"Заказ #{o[0]}\nЮзер: {o[1]}\nТовар: {o[2]}\nЦена: {o[3]} USD",
+                f"📋 <b>Заказ #{o[0]}</b>\n\n"
+                f"<blockquote>👤 Юзер: <code>{o[1]}</code>\n"
+                f"📦 Товар: <b>{o[2]}</b>\n"
+                f"💰 Цена: <b>{o[3]} USD</b></blockquote>",
                 reply_markup=admin_order_kb(o[0])
             )
         await callback.message.edit_text(text, reply_markup=back_kb())
@@ -775,7 +922,7 @@ async def admin_promo_step(message: Message, state: FSMContext):
         try:
             amount = float(message.text.replace(",", "."))
         except:
-            await message.answer("Введи число:")
+            await message.answer("⚠️ Введи число:")
             return
         await state.update_data(amount=amount, step="uses")
         await message.answer(TEXTS["ru"]["admin_promo_uses"])
@@ -783,7 +930,7 @@ async def admin_promo_step(message: Message, state: FSMContext):
         try:
             uses = int(message.text)
         except:
-            await message.answer("Введи целое число:")
+            await message.answer("⚠️ Введи целое число:")
             return
         data = await state.get_data()
         conn = sqlite3.connect(DB_PATH)
@@ -795,7 +942,7 @@ async def admin_promo_step(message: Message, state: FSMContext):
         await state.clear()
         await message.answer(TEXTS["ru"]["admin_promo_added"])
 
-# ===== ПРОМОКОД (ЮЗЕР) =====
+# ===== ПРОМОКОД =====
 @dp.callback_query(F.data == "promo")
 async def on_promo(callback: CallbackQuery, state: FSMContext):
     user = get_user(callback.from_user.id)
@@ -843,7 +990,7 @@ async def my_orders(callback: CallbackQuery):
         text = TEXTS[lang]["orders_history"] + "\n\n"
         status_map = {"pending": "⏳ В обработке", "completed": "✅ Выполнено", "rejected": "❌ Отклонено"}
         for o in orders:
-            text += f"• {o[0]} — {o[1]} USD — {status_map.get(o[2], o[2])} ({o[3][:10]})\n"
+            text += f"• <b>{o[0]}</b> — {o[1]} USD — {status_map.get(o[2], o[2])} ({o[3][:10]})\n"
         await callback.message.edit_text(text, reply_markup=back_kb())
     await callback.answer()
 
