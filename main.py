@@ -1,16 +1,15 @@
 import asyncio
 import logging
-import os
 import sys
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode, ChatType
+from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    PreCheckoutQuery, LabeledPrice, FSInputFile
+    FSInputFile
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
@@ -29,10 +28,9 @@ URL_OFFER = "https://telegra.ph/Publichnaya-oferta-Velso-Shop-11-23"
 URL_RULES = "https://telegra.ph/Pravila-Ispolzovaniya-Velso-Shop-11-24"
 URL_PRIVACY = "https://telegra.ph/Politika-konfidencialnosti-Velso-Shop"
 
-# ===== ДИСПЕТЧЕР =====
 dp = Dispatcher(storage=MemoryStorage())
 
-# ===== ПРЕМИУМ-ЭМОДЗИ =====
+# ===== ПРЕМИУМ-ЭМОДЗИ (работают только если бот Premium) =====
 E_CHECK = '<tg-emoji emoji-id="5895514131896733546">✅</tg-emoji>'
 E_CROSS = '<tg-emoji emoji-id="5893163582194978381">❌</tg-emoji>'
 E_DOLLAR = '<tg-emoji emoji-id="5893473283696759404">💲</tg-emoji>'
@@ -40,7 +38,6 @@ E_CLOCK = '<tg-emoji emoji-id="5893102202817352158">⏰</tg-emoji>'
 E_EXCL = '<tg-emoji emoji-id="5893072412924187198">❗️</tg-emoji>'
 E_WALLET = '<tg-emoji emoji-id="5893255507380014983">👛</tg-emoji>'
 E_BOLT = '<tg-emoji emoji-id="5893450623449305489">⚡️</tg-emoji>'
-E_TRASH = '<tg-emoji emoji-id="5904542823167824187">🗑</tg-emoji>'
 E_PLUS = '<tg-emoji emoji-id="5258108352008823107">➕</tg-emoji>'
 E_CATALOG = '<tg-emoji emoji-id="5226513232549664618">🛍</tg-emoji>'
 E_LOAD = '<tg-emoji emoji-id="5260687119092817530">⏳</tg-emoji>'
@@ -48,11 +45,9 @@ E_REF = '<tg-emoji emoji-id="5258486128742244085">🔗</tg-emoji>'
 E_PROFILE = '<tg-emoji emoji-id="5316727448644103237">👤</tg-emoji>'
 E_DOTS = '<tg-emoji emoji-id="5429411030960711866">…</tg-emoji>'
 E_STATS = '<tg-emoji emoji-id="5258330865674494479">📊</tg-emoji>'
-E_SEARCH = '<tg-emoji emoji-id="5429571366384842791">🔍</tg-emoji>'
 E_SERVICES = '<tg-emoji emoji-id="5260687681733533075">📦</tg-emoji>'
 E_BACK = '<tg-emoji emoji-id="5258236805890710909">◀️</tg-emoji>'
 
-# ===== БАЗА ДАННЫХ =====
 DB_PATH = "velso.db"
 
 def init_db():
@@ -142,7 +137,6 @@ def save_order_message(order_id, from_user_id, text):
     conn.commit()
     conn.close()
 
-# ===== СОСТОЯНИЯ =====
 class States(StatesGroup):
     waiting_amount = State()
     waiting_promocode = State()
@@ -152,10 +146,9 @@ class States(StatesGroup):
     order_chat = State()
     admin_reply = State()
 
-# ===== ТЕКСТЫ =====
 TEXTS = {
     "ru": {
-        "choose_lang": f"🌐 <b>Выбери язык</b> / <i>Choose language</i>:",
+        "choose_lang": "🌐 <b>Выбери язык</b> / <i>Choose language</i>:",
         "consent": (
             f"📜 <b>Публичная оферта</b>\n\n"
             f"Используешь бота, приобретаешь услуги — значит согласен с публичной офертой:\n\n"
@@ -186,7 +179,7 @@ TEXTS = {
         ),
         "profile_text": (
             f"{E_PROFILE} <b>Профиль</b>\n\n"
-            f"<blockquote>{E_DOTS} ID: <code>{{user_id}}</code>\n"
+            f"<blockquote>🆔 ID: <code>{{user_id}}</code>\n"
             f"{E_WALLET} Баланс: <b>{{balance}} USD</b>\n"
             f"🌐 Язык: {{lang}}\n"
             f"🏆 Статус: <b>{{status}}</b>\n"
@@ -212,26 +205,26 @@ TEXTS = {
         "order_chat_prompt": f"💬 <b>Чат по заказу #{{order_id}}</b>\n\n<blockquote>Напиши сообщение — админ увидит его и ответит.</blockquote>",
         "order_chat_sent": f"{E_CHECK} <blockquote>Сообщение отправлено админу. Ожидай ответа.</blockquote>",
         "admin_panel": f"{E_STATS} <b>Админ-панель</b>",
-        "admin_enter_name": f"📝 <b>Введи название:</b>",
-        "admin_enter_desc": f"📝 <b>Введи описание:</b>",
+        "admin_enter_name": "📝 <b>Введи название:</b>",
+        "admin_enter_desc": "📝 <b>Введи описание:</b>",
         "admin_enter_price": f"{E_DOLLAR} <b>Введи цену в USD:</b>",
         "admin_enter_content": f"{E_SERVICES} <b>Введи контент (для товара):</b>",
         "admin_item_added": f"{E_CHECK} <b>Добавлено!</b>",
         "admin_no_orders": f"📭 <blockquote>Заказов нет.</blockquote>",
-        "admin_reject_reason": f"✍️ <b>Введи причину отказа:</b>",
+        "admin_reject_reason": "✍️ <b>Введи причину отказа:</b>",
         "admin_stats_text": (
             f"{E_STATS} <b>Статистика</b>\n\n"
             f"<blockquote>👥 Юзеров: <b>{{users}}</b>\n"
             f"{E_SERVICES} Заказов: <b>{{orders}}</b>\n"
             f"{E_DOLLAR} Оборот: <b>{{turnover}} USD</b></blockquote>"
         ),
-        "admin_broadcast_text": f"📢 <b>Введи текст рассылки:</b>",
+        "admin_broadcast_text": "📢 <b>Введи текст рассылки:</b>",
         "admin_broadcast_sent": f"{E_CHECK} <blockquote>Отправлено <b>{{count}}</b> юзерам.</blockquote>",
-        "admin_promo_code": f"🎟 <b>Введи код:</b>",
+        "admin_promo_code": "🎟 <b>Введи код:</b>",
         "admin_promo_amount": f"{E_DOLLAR} <b>Введи сумму бонуса:</b>",
-        "admin_promo_uses": f"🔢 <b>Введи кол-во использований:</b>",
+        "admin_promo_uses": "🔢 <b>Введи кол-во использований:</b>",
         "admin_promo_added": f"{E_CHECK} <b>Промокод добавлен!</b>",
-        "promo_enter": f"🎟 <b>Введи промокод:</b>",
+        "promo_enter": "🎟 <b>Введи промокод:</b>",
         "promo_success": f"{E_CHECK} <blockquote>Промокод активирован! <b>+{{amount}} USD</b></blockquote>",
         "promo_invalid": f"{E_CROSS} <blockquote>Неверный или использованный промокод.</blockquote>",
         "order_done_notify": f"{E_CHECK} <b>Твой заказ «{{name}}» выполнен!</b>",
@@ -240,15 +233,11 @@ TEXTS = {
         "insufficient": f"{E_CROSS} <b>Недостаточно средств.</b> Пополни баланс.",
         "enter_amount": f"{E_DOLLAR} <b>Введи сумму в USD для пополнения:</b>",
         "choose_payment": f"{E_WALLET} <b>Выбери способ оплаты:</b>",
-        "invoice_created": f"{E_CHECK} <b>Счёт создан!</b> Перейди по ссылке для оплаты:\n{{link}}",
         "payment_error": f"{E_CROSS} <b>Ошибка создания счёта.</b> Попробуй позже.",
     }
 }
 
-# ===== КЛАВИАТУРЫ =====
-# ВАЖНО: в inline-кнопках Telegram НЕ рендерит <tg-emoji>,
-# поэтому в текстах кнопок используются обычные юникод-эмодзи.
-
+# ===== КЛАВИАТУРЫ (без style — работает на любой aiogram 3.x) =====
 def lang_kb():
     kb = InlineKeyboardBuilder()
     kb.button(text="🇷🇺 Русский", callback_data="lang:ru")
@@ -258,13 +247,13 @@ def lang_kb():
 
 def accept_kb():
     kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Принимаю", callback_data="accept", style="success")
+    kb.button(text="✅ Принимаю", callback_data="accept")
     return kb.as_markup()
 
 def sub_kb():
     kb = InlineKeyboardBuilder()
-    kb.button(text="🛒 Velso Shop", url="https://t.me/VelsoShopInfo", style="primary")
-    kb.button(text="✅ Проверить подписку", callback_data="check_sub", style="success")
+    kb.button(text="🛒 Velso Shop", url="https://t.me/VelsoShopInfo")
+    kb.button(text="✅ Проверить подписку", callback_data="check_sub")
     kb.adjust(1)
     return kb.as_markup()
 
@@ -293,7 +282,7 @@ def back_kb():
 
 def profile_kb():
     kb = InlineKeyboardBuilder()
-    kb.button(text="💰 Пополнить", callback_data="topup", style="success")
+    kb.button(text="💰 Пополнить", callback_data="topup")
     kb.button(text="🎟 Промокод", callback_data="promo")
     kb.button(text="📋 Мои заказы", callback_data="my_orders")
     kb.button(text="◀️ Назад", callback_data="back_to_menu")
@@ -304,7 +293,7 @@ def payment_method_kb():
     kb = InlineKeyboardBuilder()
     kb.button(text="💎 xRocket", callback_data="pay_method:xrocket")
     kb.button(text="🤖 CryptoBot", callback_data="pay_method:cryptobot")
-    kb.button(text="❌ Отмена", callback_data="cancel_topup", style="danger")
+    kb.button(text="❌ Отмена", callback_data="cancel_topup")
     kb.adjust(2, 1)
     return kb.as_markup()
 
@@ -321,20 +310,19 @@ def admin_kb():
 
 def admin_order_kb(order_id):
     kb = InlineKeyboardBuilder()
-    kb.button(text="💬 Ответить", callback_data=f"order_reply:{order_id}", style="primary")
-    kb.button(text="✅ Выполнено", callback_data=f"order_done:{order_id}", style="success")
-    kb.button(text="❌ Не выполнено", callback_data=f"order_reject:{order_id}", style="danger")
+    kb.button(text="💬 Ответить", callback_data=f"order_reply:{order_id}")
+    kb.button(text="✅ Выполнено", callback_data=f"order_done:{order_id}")
+    kb.button(text="❌ Не выполнено", callback_data=f"order_reject:{order_id}")
     kb.adjust(1, 2)
     return kb.as_markup()
 
 def order_chat_kb(order_id):
     kb = InlineKeyboardBuilder()
-    kb.button(text="💬 Написать по заказу", callback_data=f"chat_order:{order_id}", style="primary")
+    kb.button(text="💬 Написать по заказу", callback_data=f"chat_order:{order_id}")
     kb.button(text="◀️ В каталог", callback_data="menu_catalog")
     kb.adjust(1, 1)
     return kb.as_markup()
 
-# ===== ХЕЛПЕРЫ =====
 async def check_sub(bot: Bot, user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
@@ -381,13 +369,10 @@ async def send_menu(bot: Bot, chat_id: int, lang="ru", edit_message: Message = N
         else:
             await bot.send_message(chat_id, TEXTS[lang]["menu"], reply_markup=menu_kb())
 
-# ===== ХЕНДЛЕРЫ =====
-
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     uid = message.from_user.id
     user = get_user(uid)
-
     if not user:
         args = message.text.split()
         referrer_id = None
@@ -398,7 +383,6 @@ async def cmd_start(message: Message, state: FSMContext):
                 pass
         create_user(uid, referrer_id)
         user = get_user(uid)
-
     if user[4]:
         if await check_sub(message.bot, uid):
             update_user(uid, subscribed=1)
@@ -406,14 +390,12 @@ async def cmd_start(message: Message, state: FSMContext):
         else:
             await send_subscribe(message.bot, message.chat.id, user[1])
         return
-
     await message.answer(TEXTS["ru"]["choose_lang"], reply_markup=lang_kb())
 
 @dp.callback_query(F.data.startswith("lang:"))
 async def on_lang(callback: CallbackQuery):
     lang = callback.data.split(":")[1]
-    uid = callback.from_user.id
-    update_user(uid, lang=lang)
+    update_user(callback.from_user.id, lang=lang)
     await send_consent(callback.bot, callback.from_user.id, lang, edit_message=callback.message)
     await callback.answer()
 
@@ -442,14 +424,12 @@ async def on_check_sub(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "back_to_menu")
 async def on_back(callback: CallbackQuery):
-    uid = callback.from_user.id
-    user = get_user(uid)
+    user = get_user(callback.from_user.id)
     lang = user[1] if user else "ru"
     await callback.message.delete()
     await send_menu(callback.bot, callback.from_user.id, lang)
     await callback.answer()
 
-# ===== КАТАЛОГ =====
 @dp.callback_query(F.data == "menu_catalog")
 async def on_catalog(callback: CallbackQuery):
     user = get_user(callback.from_user.id)
@@ -458,7 +438,7 @@ async def on_catalog(callback: CallbackQuery):
     await callback.message.answer(TEXTS[lang]["catalog"], reply_markup=catalog_kb())
     await callback.answer()
 
-# ===== ПРОФИЛЬ =====
+# ===== ПРОФИЛЬ — исправлен: edit_text вместо delete+answer =====
 @dp.callback_query(F.data == "menu_profile")
 async def on_profile(callback: CallbackQuery):
     uid = callback.from_user.id
@@ -475,11 +455,14 @@ async def on_profile(callback: CallbackQuery):
         reg_date=user[6][:10] if user[6] else "—",
         ref_count=ref_count
     )
-    await callback.message.delete()
-    await callback.message.answer(text, reply_markup=profile_kb())
+    try:
+        await callback.message.edit_text(text, reply_markup=profile_kb())
+    except Exception as e:
+        logging.error(f"profile error: {e}")
+        await callback.answer("Ошибка профиля. Смотри логи.", show_alert=True)
+        return
     await callback.answer()
 
-# ===== ПОПОЛНЕНИЕ =====
 @dp.callback_query(F.data == "topup")
 async def on_topup(callback: CallbackQuery, state: FSMContext):
     user = get_user(callback.from_user.id)
@@ -505,6 +488,7 @@ async def on_amount(message: Message, state: FSMContext):
         reply_markup=payment_method_kb()
     )
 
+# ===== XROCKET — исправлено: currency передаётся, get_invoice для проверки =====
 @dp.callback_query(F.data.startswith("pay_method:"))
 async def on_pay_method(callback: CallbackQuery, state: FSMContext):
     method = callback.data.split(":")[1]
@@ -528,12 +512,11 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
             )
             link = invoice.link
             invoice_id = invoice.id
-
             await state.update_data(xrocket_invoice_id=invoice_id, xrocket_amount=amount)
 
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Перейти к оплате", url=link)],
-                [InlineKeyboardButton(text="✅ Проверить оплату", callback_data="check_xrocket_pay", style="success")]
+                [InlineKeyboardButton(text="✅ Проверить оплату", callback_data="check_xrocket_pay")]
             ])
             await callback.message.edit_text(
                 f"{E_DOLLAR} <b>Сумма:</b> {amount} USD\n\n"
@@ -559,7 +542,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
                 )
                 link = invoice.bot_invoice_url
             await callback.message.edit_text(
-                TEXTS[lang]["invoice_created"].format(link=link),
+                f"{E_CHECK} <b>Счёт создан!</b> Перейди по ссылке для оплаты:\n{link}",
                 disable_web_page_preview=True
             )
             await state.clear()
@@ -610,7 +593,6 @@ async def on_cancel_topup(callback: CallbackQuery, state: FSMContext):
     await send_menu(callback.bot, callback.from_user.id, lang)
     await callback.answer()
 
-# ===== РЕФЕРАЛЫ =====
 @dp.callback_query(F.data == "menu_refs")
 async def on_refs(callback: CallbackQuery):
     uid = callback.from_user.id
@@ -628,7 +610,6 @@ async def on_refs(callback: CallbackQuery):
     await callback.message.answer(text, reply_markup=back_kb())
     await callback.answer()
 
-# ===== УСЛУГИ / ТОВАР =====
 @dp.callback_query(F.data == "menu_services")
 async def on_services(callback: CallbackQuery):
     user = get_user(callback.from_user.id)
@@ -715,8 +696,7 @@ async def on_buy(callback: CallbackQuery):
                 f"{E_PLUS} <b>Новый заказ #{order_id}</b>\n\n"
                 f"<blockquote>{E_PROFILE} Юзер: <code>{uid}</code>\n"
                 f"{E_SERVICES} Услуга: <b>{name}</b>\n"
-                f"{E_DOLLAR} Цена: <b>{price} USD</b></blockquote>\n\n"
-                f"Нажми «💬 Ответить», чтобы написать юзеру.",
+                f"{E_DOLLAR} Цена: <b>{price} USD</b></blockquote>",
                 reply_markup=admin_order_kb(order_id)
             )
         except:
@@ -727,7 +707,6 @@ async def on_buy(callback: CallbackQuery):
         )
     await callback.answer()
 
-# ===== ЧАТ ПО ЗАКАЗУ (ЮЗЕР) =====
 @dp.callback_query(F.data.startswith("chat_order:"))
 async def on_chat_order(callback: CallbackQuery, state: FSMContext):
     order_id = int(callback.data.split(":")[1])
@@ -749,9 +728,7 @@ async def on_order_chat_message(message: Message, state: FSMContext):
     user = get_user(uid)
     lang = user[1] if user else "ru"
     text = message.text
-
     save_order_message(order_id, uid, text)
-
     try:
         await message.bot.send_message(
             ADMIN_ID,
@@ -762,11 +739,9 @@ async def on_order_chat_message(message: Message, state: FSMContext):
         )
     except:
         pass
-
     await message.answer(TEXTS[lang]["order_chat_sent"], reply_markup=back_kb())
     await state.clear()
 
-# ===== ОТВЕТ АДМИНА ПО ЗАКАЗУ =====
 @dp.callback_query(F.data.startswith("order_reply:"))
 async def on_order_reply(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID:
@@ -784,13 +759,11 @@ async def on_admin_reply(message: Message, state: FSMContext):
     data = await state.get_data()
     order_id = data.get("reply_order_id")
     text = message.text
-
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT user_id FROM orders WHERE id = ?", (order_id,))
     row = c.fetchone()
     conn.close()
-
     if row:
         uid = row[0]
         save_order_message(order_id, ADMIN_ID, text)
@@ -808,7 +781,6 @@ async def on_admin_reply(message: Message, state: FSMContext):
         await message.answer(f"{E_CROSS} Заказ не найден.")
     await state.clear()
 
-# ===== АДМИНКА =====
 @dp.message(Command("admin"))
 async def cmd_admin(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -837,7 +809,6 @@ async def admin_add_goods(callback: CallbackQuery, state: FSMContext):
 async def admin_item_step(message: Message, state: FSMContext):
     data = await state.get_data()
     step = data.get("step", "name")
-
     if step == "reject_reason":
         order_id = data.get("reject_order_id")
         reason = message.text
@@ -860,7 +831,6 @@ async def admin_item_step(message: Message, state: FSMContext):
         await state.clear()
         await message.answer(f"{E_CROSS} Заказ #{order_id} отклонён. Причина: {reason}")
         return
-
     if step == "name":
         await state.update_data(name=message.text, step="desc")
         await message.answer(TEXTS["ru"]["admin_enter_desc"])
@@ -1030,7 +1000,6 @@ async def admin_promo_step(message: Message, state: FSMContext):
         await state.clear()
         await message.answer(TEXTS["ru"]["admin_promo_added"])
 
-# ===== ПРОМОКОД =====
 @dp.callback_query(F.data == "promo")
 async def on_promo(callback: CallbackQuery, state: FSMContext):
     user = get_user(callback.from_user.id)
@@ -1061,7 +1030,6 @@ async def apply_promo(message: Message, state: FSMContext):
         await message.answer(TEXTS[lang]["promo_invalid"], reply_markup=back_kb())
     await state.clear()
 
-# ===== ИСТОРИЯ ЗАКАЗОВ =====
 @dp.callback_query(F.data == "my_orders")
 async def my_orders(callback: CallbackQuery):
     uid = callback.from_user.id
@@ -1082,7 +1050,6 @@ async def my_orders(callback: CallbackQuery):
         await callback.message.edit_text(text, reply_markup=back_kb())
     await callback.answer()
 
-# ===== ЗАПУСК =====
 async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await dp.start_polling(bot)
