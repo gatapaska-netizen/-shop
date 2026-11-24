@@ -17,10 +17,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# ===== ТОКЕНЫ (вставь свои) =====
-BOT_TOKEN = os.getenv("BOT_TOKEN", "9000723536:AAGmJnuXkq66ZU3dbOjT03Y83T-YaflKEdc")
-XROCKET_TOKEN = os.getenv("XROCKET_TOKEN", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMxMDkwMSIsImp0aSI6ImFwcDozMTA5MDE6YmFjNmUwNjQtY2UwNi00ZjE0LTkxYmUtZThiNGFmZWRhM2M3IiwiaWF0IjoxNzk1NDc5NTM2fQ.U2uPV6sNohCA_9J7RkE4DWYxwewSKbRo3KChZ0U3928")
-CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN", "685556:AASZ3wmOPUPdP7otbBXgHIyshMkUGWN5rKo")
+# ===== ТОКЕНЫ =====
+BOT_TOKEN = "9000723536:AAGmJnuXkq66ZU3dbOjT03Y83T-YaflKEdc"
+XROCKET_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMxMDkwMSIsImp0aSI6ImFwcDozMTA5MDE6YmFjNmUwNjQtY2UwNi00ZjE0LTkxYmUtZThiNGFmZWRhM2M3IiwiaWF0IjoxNzk1NDc5NTM2fQ.U2uPV6sNohCA_9J7RkE4DWYxwewSKbRo3KChZ0U3928"
+CRYPTOBOT_TOKEN = "685556:AASZ3wmOPUPdP7otbBXgHIyshMkUGWN5rKo"
 ADMIN_ID = 8827334252
 CHANNEL_ID = "@VelsoShopInfo"
 SUPPORT_USERNAME = "@velsogod"
@@ -28,6 +28,9 @@ SUPPORT_USERNAME = "@velsogod"
 URL_OFFER = "https://telegra.ph/Publichnaya-oferta-Velso-Shop-11-23"
 URL_RULES = "https://telegra.ph/Pravila-Ispolzovaniya-Velso-Shop-11-24"
 URL_PRIVACY = "https://telegra.ph/Politika-konfidencialnosti-Velso-Shop"  # заглушка, замени когда будет
+
+# ===== ДИСПЕТЧЕР =====
+dp = Dispatcher(storage=MemoryStorage())
 
 # ===== БАЗА ДАННЫХ (SQLite) =====
 DB_PATH = "velso.db"
@@ -295,9 +298,8 @@ def get_main_menu_text(lang="ru"):
 async def cmd_start(message: Message, state: FSMContext):
     uid = message.from_user.id
     user = get_user(uid)
-    
+
     if not user:
-        # Парсим реферальный код
         args = message.text.split()
         referrer_id = None
         if len(args) > 1 and args[1].startswith("ref_"):
@@ -307,17 +309,15 @@ async def cmd_start(message: Message, state: FSMContext):
                 pass
         create_user(uid, referrer_id)
         user = get_user(uid)
-    
+
     if user[4]:  # accepted
-        # Уже принял, проверяем подписку
         if await check_sub(message.bot, uid):
             update_user(uid, subscribed=1)
             await message.answer(TEXTS[user[1]]["menu"], reply_markup=menu_kb())
         else:
             await message.answer(TEXTS[user[1]]["subscribe_text"], reply_markup=sub_kb())
         return
-    
-    # Новый юзер — выбор языка
+
     await message.answer(TEXTS["ru"]["choose_lang"], reply_markup=lang_kb())
 
 @dp.callback_query(F.data.startswith("lang:"))
@@ -338,8 +338,6 @@ async def on_accept(callback: CallbackQuery):
     update_user(uid, accepted=1)
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
-    # Удаляем сообщение с согласием и показываем подписку
     await callback.message.delete()
     await callback.message.answer(
         TEXTS[lang]["subscribe_text"],
@@ -352,7 +350,6 @@ async def on_check_sub(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     if await check_sub(callback.bot, uid):
         update_user(uid, subscribed=1)
         await callback.message.edit_text(TEXTS[lang]["menu"], reply_markup=menu_kb())
@@ -374,13 +371,11 @@ async def on_profile(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (uid,))
     ref_count = c.fetchone()[0]
     conn.close()
-    
     text = TEXTS[lang]["profile_text"].format(
         user_id=uid,
         balance=user[2],
@@ -410,7 +405,6 @@ async def on_amount(message: Message, state: FSMContext):
     except:
         await message.answer("Введи корректную сумму (число больше 0):")
         return
-    
     await state.update_data(amount=amount)
     user = get_user(message.from_user.id)
     lang = user[1] if user else "ru"
@@ -427,7 +421,6 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     try:
         if method == "xrocket":
             from aiorocket2 import xRocketClient
@@ -454,17 +447,14 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
                 link = invoice.bot_invoice_url
         else:
             return
-        
         await callback.message.edit_text(
             TEXTS[lang]["invoice_created"].format(link=link),
             disable_web_page_preview=True
         )
         await state.clear()
-        
     except Exception as e:
         logging.error(f"Payment error: {e}")
         await callback.message.edit_text(TEXTS[lang]["payment_error"])
-    
     await callback.answer()
 
 @dp.callback_query(F.data == "cancel_topup")
@@ -481,21 +471,14 @@ async def on_refs(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (uid,))
     ref_count = c.fetchone()[0]
     conn.close()
-    
     ref_link = f"https://t.me/VelsoShopBot?start=ref_{uid}"
-    earned = ref_count * 0  # TODO: считать реально заработанное
-    
-    text = TEXTS[lang]["ref_text"].format(
-        ref_link=ref_link,
-        ref_count=ref_count,
-        earned=earned
-    )
+    earned = ref_count * 0
+    text = TEXTS[lang]["ref_text"].format(ref_link=ref_link, ref_count=ref_count, earned=earned)
     await callback.message.edit_text(text, reply_markup=back_kb())
     await callback.answer()
 
@@ -505,13 +488,11 @@ async def on_services(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT id, name, price FROM items WHERE type = 'service'")
     items = c.fetchall()
     conn.close()
-    
     if not items:
         await callback.message.edit_text(TEXTS[lang]["empty_list"], reply_markup=back_kb())
     else:
@@ -530,13 +511,11 @@ async def on_goods(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT id, name, price FROM items WHERE type = 'goods'")
     items = c.fetchall()
     conn.close()
-    
     if not items:
         await callback.message.edit_text(TEXTS[lang]["empty_list"], reply_markup=back_kb())
     else:
@@ -557,28 +536,20 @@ async def on_buy(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT name, price, content FROM items WHERE id = ?", (item_id,))
     item = c.fetchone()
     conn.close()
-    
     if not item:
         await callback.answer("Товар не найден", show_alert=True)
         return
-    
     name, price, content = item
-    
     if user[2] < price:
         await callback.answer(TEXTS[lang]["insufficient"], show_alert=True)
         return
-    
-    # Списываем баланс
     add_balance(uid, -price)
-    
     if item_type == "goods":
-        # Товар — выдается сразу
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("INSERT INTO orders (user_id, item_type, item_name, price, status, created_at) VALUES (?, ?, ?, ?, 'completed', ?)",
@@ -587,7 +558,6 @@ async def on_buy(callback: CallbackQuery):
         conn.close()
         await callback.message.edit_text(TEXTS[lang]["goods_delivered"].format(content=content), reply_markup=back_kb())
     else:
-        # Услуга — заказ админу
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("INSERT INTO orders (user_id, item_type, item_name, price, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)",
@@ -595,22 +565,15 @@ async def on_buy(callback: CallbackQuery):
         order_id = c.lastrowid
         conn.commit()
         conn.close()
-        
-        # Уведомление админу
         try:
             await callback.bot.send_message(
                 ADMIN_ID,
-                f"🆕 Новый заказ #{order_id}\n\n"
-                f"Юзер: {uid}\n"
-                f"Услуга: {name}\n"
-                f"Цена: {price} USD",
+                f"🆕 Новый заказ #{order_id}\n\nЮзер: {uid}\nУслуга: {name}\nЦена: {price} USD",
                 reply_markup=admin_order_kb(order_id)
             )
         except:
             pass
-        
         await callback.message.edit_text(TEXTS[lang]["order_created"], reply_markup=back_kb())
-    
     await callback.answer()
 
 # ===== АДМИНКА =====
@@ -625,7 +588,7 @@ async def admin_add_service(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID:
         return
     await state.set_state(States.admin_add_item)
-    await state.update_data(item_type="service")
+    await state.update_data(item_type="service", step="name")
     await callback.message.edit_text(TEXTS["ru"]["admin_enter_name"])
     await callback.answer()
 
@@ -634,7 +597,7 @@ async def admin_add_goods(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID:
         return
     await state.set_state(States.admin_add_item)
-    await state.update_data(item_type="goods")
+    await state.update_data(item_type="goods", step="name")
     await callback.message.edit_text(TEXTS["ru"]["admin_enter_name"])
     await callback.answer()
 
@@ -642,7 +605,30 @@ async def admin_add_goods(callback: CallbackQuery, state: FSMContext):
 async def admin_item_step(message: Message, state: FSMContext):
     data = await state.get_data()
     step = data.get("step", "name")
-    
+
+    if step == "reject_reason":
+        order_id = data.get("reject_order_id")
+        reason = message.text
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT user_id, item_name, price FROM orders WHERE id = ?", (order_id,))
+        order = c.fetchone()
+        c.execute("UPDATE orders SET status = 'rejected', reason = ? WHERE id = ?", (reason, order_id))
+        conn.commit()
+        conn.close()
+        if order:
+            add_balance(order[0], order[2])
+            try:
+                await message.bot.send_message(
+                    order[0],
+                    TEXTS["ru"]["order_reject_notify"].format(name=order[1], reason=reason)
+                )
+            except:
+                pass
+        await state.clear()
+        await message.answer(f"❌ Заказ #{order_id} отклонён. Причина: {reason}")
+        return
+
     if step == "name":
         await state.update_data(name=message.text, step="desc")
         await message.answer(TEXTS["ru"]["admin_enter_desc"])
@@ -678,14 +664,12 @@ async def admin_orders(callback: CallbackQuery):
     c.execute("SELECT id, user_id, item_name, price, status FROM orders WHERE status = 'pending' ORDER BY id DESC")
     orders = c.fetchall()
     conn.close()
-    
     if not orders:
         await callback.message.edit_text(TEXTS["ru"]["admin_no_orders"], reply_markup=back_kb())
     else:
         text = "📋 <b>Заказы в ожидании:</b>\n\n"
         for o in orders:
             text += f"#{o[0]} | {o[1]} | {o[2]} | {o[3]} USD\n"
-        # Отправляем каждый заказ с кнопками
         for o in orders:
             await callback.bot.send_message(
                 ADMIN_ID,
@@ -700,7 +684,6 @@ async def order_done(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         return
     order_id = int(callback.data.split(":")[1])
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT user_id, item_name FROM orders WHERE id = ?", (order_id,))
@@ -708,7 +691,6 @@ async def order_done(callback: CallbackQuery):
     c.execute("UPDATE orders SET status = 'completed' WHERE id = ?", (order_id,))
     conn.commit()
     conn.close()
-    
     if order:
         try:
             await callback.bot.send_message(
@@ -717,7 +699,6 @@ async def order_done(callback: CallbackQuery):
             )
         except:
             pass
-    
     await callback.message.edit_text(f"✅ Заказ #{order_id} выполнен.")
     await callback.answer()
 
@@ -726,9 +707,8 @@ async def order_reject(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID:
         return
     order_id = int(callback.data.split(":")[1])
-    await state.update_data(reject_order_id=order_id)
-    await state.set_state(States.admin_add_item)  # используем это состояние для причины
-    await state.update_data(step="reject_reason")
+    await state.set_state(States.admin_add_item)
+    await state.update_data(step="reject_reason", reject_order_id=order_id)
     await callback.message.edit_text(TEXTS["ru"]["admin_reject_reason"])
     await callback.answer()
 
@@ -745,7 +725,6 @@ async def admin_stats(callback: CallbackQuery):
     c.execute("SELECT COALESCE(SUM(price), 0) FROM orders WHERE status = 'completed'")
     turnover = c.fetchone()[0]
     conn.close()
-    
     text = TEXTS["ru"]["admin_stats_text"].format(users=users, orders=orders, turnover=turnover)
     await callback.message.edit_text(text, reply_markup=back_kb())
     await callback.answer()
@@ -766,7 +745,6 @@ async def do_broadcast(message: Message, state: FSMContext):
     c.execute("SELECT user_id FROM users")
     users = c.fetchall()
     conn.close()
-    
     sent = 0
     for u in users:
         try:
@@ -790,7 +768,6 @@ async def admin_promo(callback: CallbackQuery, state: FSMContext):
 async def admin_promo_step(message: Message, state: FSMContext):
     data = await state.get_data()
     step = data.get("step", "code")
-    
     if step == "code":
         await state.update_data(code=message.text, step="amount")
         await message.answer(TEXTS["ru"]["admin_promo_amount"])
@@ -833,12 +810,10 @@ async def apply_promo(message: Message, state: FSMContext):
     uid = message.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT amount, uses_left FROM promocodes WHERE code = ? AND uses_left > 0", (code,))
     promo = c.fetchone()
-    
     if promo:
         amount, uses = promo
         c.execute("UPDATE promocodes SET uses_left = uses_left - 1 WHERE code = ?", (code,))
@@ -849,7 +824,6 @@ async def apply_promo(message: Message, state: FSMContext):
     else:
         conn.close()
         await message.answer(TEXTS[lang]["promo_invalid"], reply_markup=back_kb())
-    
     await state.clear()
 
 # ===== ИСТОРИЯ ЗАКАЗОВ =====
@@ -858,13 +832,11 @@ async def my_orders(callback: CallbackQuery):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT item_name, price, status, created_at FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 20", (uid,))
     orders = c.fetchall()
     conn.close()
-    
     if not orders:
         await callback.message.edit_text(TEXTS[lang]["no_orders"], reply_markup=back_kb())
     else:
@@ -874,38 +846,6 @@ async def my_orders(callback: CallbackQuery):
             text += f"• {o[0]} — {o[1]} USD — {status_map.get(o[2], o[2])} ({o[3][:10]})\n"
         await callback.message.edit_text(text, reply_markup=back_kb())
     await callback.answer()
-
-# ===== ОБРАБОТКА ПРИЧИНЫ ОТКАЗА =====
-@dp.message(States.admin_add_item)
-async def handle_reject_reason(message: Message, state: FSMContext):
-    data = await state.get_data()
-    if data.get("step") != "reject_reason":
-        return
-    
-    order_id = data.get("reject_order_id")
-    reason = message.text
-    
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT user_id, item_name, price FROM orders WHERE id = ?", (order_id,))
-    order = c.fetchone()
-    c.execute("UPDATE orders SET status = 'rejected', reason = ? WHERE id = ?", (reason, order_id))
-    conn.commit()
-    conn.close()
-    
-    if order:
-        # Возврат средств
-        add_balance(order[0], order[2])
-        try:
-            await message.bot.send_message(
-                order[0],
-                TEXTS["ru"]["order_reject_notify"].format(name=order[1], reason=reason)
-            )
-        except:
-            pass
-    
-    await state.clear()
-    await message.answer(f"❌ Заказ #{order_id} отклонён. Причина: {reason}")
 
 # ===== ЗАПУСК =====
 async def main():
