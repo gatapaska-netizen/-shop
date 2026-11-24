@@ -18,9 +18,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
 # ===== ТОКЕНЫ (вставь свои) =====
-BOT_TOKEN = os.getenv("BOT_TOKEN", "СЮДА_ТОКЕН_БОТА")
-XROCKET_TOKEN = os.getenv("XROCKET_TOKEN", "СЮДА_JWT_XROCKET")
-CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN", "СЮДА_ТОКЕН_CRYPTOBOT")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "9000723536:AAGmJnuXkq66ZU3dbOjT03Y83T-YaflKEdc")
+XROCKET_TOKEN = os.getenv("XROCKET_TOKEN", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMxMDkwMSIsImp0aSI6ImFwcDozMTA5MDE6YmFjNmUwNjQtY2UwNi00ZjE0LTkxYmUtZThiNGFmZWRhM2M3IiwiaWF0IjoxNzk1NDc5NTM2fQ.U2uPV6sNohCA_9J7RkE4DWYxwewSKbRo3KChZ0U3928")
+CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN", "685556:AASZ3wmOPUPdP7otbBXgHIyshMkUGWN5rKo")
 ADMIN_ID = 8827334252
 CHANNEL_ID = "@VelsoShopInfo"
 SUPPORT_USERNAME = "@velsogod"
