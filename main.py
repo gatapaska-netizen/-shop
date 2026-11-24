@@ -186,7 +186,7 @@ TEXTS = {
         ),
         "profile_text": (
             f"{E_PROFILE} <b>Профиль</b>\n\n"
-            f"<blockquote>🆔 ID: <code>{{user_id}}</code>\n"
+            f"<blockquote>{E_DOTS} ID: <code>{{user_id}}</code>\n"
             f"{E_WALLET} Баланс: <b>{{balance}} USD</b>\n"
             f"🌐 Язык: {{lang}}\n"
             f"🏆 Статус: <b>{{status}}</b>\n"
@@ -215,7 +215,7 @@ TEXTS = {
         "admin_enter_name": f"📝 <b>Введи название:</b>",
         "admin_enter_desc": f"📝 <b>Введи описание:</b>",
         "admin_enter_price": f"{E_DOLLAR} <b>Введи цену в USD:</b>",
-        "admin_enter_content": f"📦 <b>Введи контент (для товара):</b>",
+        "admin_enter_content": f"{E_SERVICES} <b>Введи контент (для товара):</b>",
         "admin_item_added": f"{E_CHECK} <b>Добавлено!</b>",
         "admin_no_orders": f"📭 <blockquote>Заказов нет.</blockquote>",
         "admin_reject_reason": f"✍️ <b>Введи причину отказа:</b>",
@@ -246,6 +246,9 @@ TEXTS = {
 }
 
 # ===== КЛАВИАТУРЫ =====
+# ВАЖНО: в inline-кнопках Telegram НЕ рендерит <tg-emoji>,
+# поэтому в текстах кнопок используются обычные юникод-эмодзи.
+
 def lang_kb():
     kb = InlineKeyboardBuilder()
     kb.button(text="🇷🇺 Русский", callback_data="lang:ru")
@@ -534,7 +537,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
             ])
             await callback.message.edit_text(
                 f"{E_DOLLAR} <b>Сумма:</b> {amount} USD\n\n"
-                f"Нажми «Перейти к оплате», оплати счёт, затем нажми «Проверить оплату».",
+                f"{E_WALLET} Нажми «Перейти к оплате», оплати счёт, затем нажми «Проверить оплату».",
                 reply_markup=kb
             )
         except Exception as e:
@@ -709,9 +712,9 @@ async def on_buy(callback: CallbackQuery):
         try:
             await callback.bot.send_message(
                 ADMIN_ID,
-                f"🆕 <b>Новый заказ #{order_id}</b>\n\n"
-                f"<blockquote>👤 Юзер: <code>{uid}</code>\n"
-                f"📦 Услуга: <b>{name}</b>\n"
+                f"{E_PLUS} <b>Новый заказ #{order_id}</b>\n\n"
+                f"<blockquote>{E_PROFILE} Юзер: <code>{uid}</code>\n"
+                f"{E_SERVICES} Услуга: <b>{name}</b>\n"
                 f"{E_DOLLAR} Цена: <b>{price} USD</b></blockquote>\n\n"
                 f"Нажми «💬 Ответить», чтобы написать юзеру.",
                 reply_markup=admin_order_kb(order_id)
@@ -719,7 +722,7 @@ async def on_buy(callback: CallbackQuery):
         except:
             pass
         await callback.message.edit_text(
-            TEXTS[lang]["order_created"] + f"\n\n🆔 Заказ: <b>#{order_id}</b>",
+            TEXTS[lang]["order_created"] + f"\n\n{E_DOTS} Заказ: <b>#{order_id}</b>",
             reply_markup=order_chat_kb(order_id)
         )
     await callback.answer()
@@ -753,7 +756,7 @@ async def on_order_chat_message(message: Message, state: FSMContext):
         await message.bot.send_message(
             ADMIN_ID,
             f"💬 <b>Сообщение по заказу #{order_id}</b>\n\n"
-            f"<blockquote>👤 От: <code>{uid}</code>\n"
+            f"<blockquote>{E_PROFILE} От: <code>{uid}</code>\n"
             f"📝 {text}</blockquote>",
             reply_markup=admin_order_kb(order_id)
         )
@@ -903,8 +906,8 @@ async def admin_orders(callback: CallbackQuery):
             await callback.bot.send_message(
                 ADMIN_ID,
                 f"{E_SERVICES} <b>Заказ #{o[0]}</b>\n\n"
-                f"<blockquote>👤 Юзер: <code>{o[1]}</code>\n"
-                f"📦 Товар: <b>{o[2]}</b>\n"
+                f"<blockquote>{E_PROFILE} Юзер: <code>{o[1]}</code>\n"
+                f"{E_CATALOG} Товар: <b>{o[2]}</b>\n"
                 f"{E_DOLLAR} Цена: <b>{o[3]} USD</b></blockquote>",
                 reply_markup=admin_order_kb(o[0])
             )
