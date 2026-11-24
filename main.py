@@ -32,6 +32,26 @@ URL_PRIVACY = "https://telegra.ph/Politika-konfidencialnosti-Velso-Shop"
 # ===== ДИСПЕТЧЕР =====
 dp = Dispatcher(storage=MemoryStorage())
 
+# ===== ПРЕМИУМ-ЭМОДЗИ =====
+E_CHECK = '<tg-emoji emoji-id="5895514131896733546">✅</tg-emoji>'
+E_CROSS = '<tg-emoji emoji-id="5893163582194978381">❌</tg-emoji>'
+E_DOLLAR = '<tg-emoji emoji-id="5893473283696759404">💲</tg-emoji>'
+E_CLOCK = '<tg-emoji emoji-id="5893102202817352158">⏰</tg-emoji>'
+E_EXCL = '<tg-emoji emoji-id="5893072412924187198">❗️</tg-emoji>'
+E_WALLET = '<tg-emoji emoji-id="5893255507380014983">👛</tg-emoji>'
+E_BOLT = '<tg-emoji emoji-id="5893450623449305489">⚡️</tg-emoji>'
+E_TRASH = '<tg-emoji emoji-id="5904542823167824187">🗑</tg-emoji>'
+E_PLUS = '<tg-emoji emoji-id="5258108352008823107">➕</tg-emoji>'
+E_CATALOG = '<tg-emoji emoji-id="5226513232549664618">🛍</tg-emoji>'
+E_LOAD = '<tg-emoji emoji-id="5260687119092817530">⏳</tg-emoji>'
+E_REF = '<tg-emoji emoji-id="5258486128742244085">🔗</tg-emoji>'
+E_PROFILE = '<tg-emoji emoji-id="5316727448644103237">👤</tg-emoji>'
+E_DOTS = '<tg-emoji emoji-id="5429411030960711866">…</tg-emoji>'
+E_STATS = '<tg-emoji emoji-id="5258330865674494479">📊</tg-emoji>'
+E_SEARCH = '<tg-emoji emoji-id="5429571366384842791">🔍</tg-emoji>'
+E_SERVICES = '<tg-emoji emoji-id="5260687681733533075">📦</tg-emoji>'
+E_BACK = '<tg-emoji emoji-id="5258236805890710909">◀️</tg-emoji>'
+
 # ===== БАЗА ДАННЫХ =====
 DB_PATH = "velso.db"
 
@@ -129,89 +149,99 @@ class States(StatesGroup):
     admin_add_item = State()
     admin_add_promo = State()
     admin_broadcast = State()
-    order_chat = State()          # юзер пишет в чат заказа
-    admin_reply = State()         # админ отвечает по заказу
+    order_chat = State()
+    admin_reply = State()
 
-# ===== ТЕКСТЫ (с жирным и цитатами) =====
+# ===== ТЕКСТЫ =====
 TEXTS = {
     "ru": {
-        "choose_lang": "🌐 <b>Выбери язык</b> / <i>Choose language</i>:",
+        "choose_lang": f"🌐 <b>Выбери язык</b> / <i>Choose language</i>:",
         "consent": (
-            "📜 <b>Публичная оферта</b>\n\n"
-            "Используешь бота, приобретаешь услуги — значит согласен с публичной офертой:\n\n"
-            f"✅ <a href='{URL_PRIVACY}'>Политика конфиденциальности</a>\n\n"
-            f"❗️<a href='{URL_RULES}'>Правила использования</a>\n\n"
-            "<blockquote>🔗 Ссылки кликабельны. Нажми «Принимаю», чтобы продолжить.</blockquote>"
+            f"📜 <b>Публичная оферта</b>\n\n"
+            f"Используешь бота, приобретаешь услуги — значит согласен с публичной офертой:\n\n"
+            f"{E_CHECK} <a href='{URL_PRIVACY}'>Политика конфиденциальности</a>\n\n"
+            f"{E_EXCL} <a href='{URL_RULES}'>Правила использования</a>\n\n"
+            f"<blockquote>{E_BOLT} Ссылки кликабельны. Нажми «Принимаю», чтобы продолжить.</blockquote>"
         ),
-        "accept": "✅ Принимаю",
+        "accept": f"{E_CHECK} Принимаю",
         "subscribe_text": (
-            "📢 <b>Обязательная подписка</b>\n\n"
-            "Для использования бота подпишись на канал:\n\n"
-            "<blockquote>🛒 <b>Velso Shop</b> — новости, акции, обновления.</blockquote>\n\n"
-            "После подписки нажми <b>«✅ Проверить подписку»</b>."
+            f"{E_EXCL} <b>Обязательная подписка</b>\n\n"
+            f"Для использования бота подпишись на канал:\n\n"
+            f"<blockquote>{E_CATALOG} <b>Velso Shop</b> — новости, акции, обновления.</blockquote>\n\n"
+            f"После подписки нажми <b>«{E_CHECK} Проверить подписку»</b>."
         ),
         "menu": (
-            "🏠 <b>Меню</b>\n\n"
-            "<blockquote>🛍 Каталог — услуги и товары\n"
-            "👤 Профиль — баланс и заказы\n"
-            "🔗 Рефералы — 10% с пополнений\n"
-            "📜 Оферта — условия\n"
-            "🆘 Поддержка — связь с нами</blockquote>"
+            f"🏠 <b>Меню Velso Shop</b>\n\n"
+            f"<blockquote>{E_CATALOG} <b>Каталог</b> — услуги и товары\n"
+            f"{E_PROFILE} <b>Профиль</b> — баланс и заказы\n"
+            f"{E_REF} <b>Рефералы</b> — 10% с пополнений\n"
+            f"📜 <b>Оферта</b> — условия\n"
+            f"🆘 <b>Поддержка</b> — связь с нами</blockquote>\n\n"
+            f"<i>Выбери раздел ниже 👇</i>"
         ),
-        "catalog": "🛍 <b>Каталог</b>\n\n<blockquote>Выбери раздел:</blockquote>",
+        "catalog": (
+            f"{E_CATALOG} <b>Каталог</b>\n\n"
+            f"<blockquote>{E_SERVICES} <b>Услуги</b> — выполняются вручную\n"
+            f"{E_CATALOG} <b>Товар</b> — выдаётся автоматически</blockquote>"
+        ),
         "profile_text": (
-            "👤 <b>Профиль</b>\n\n"
-            "<blockquote>🆔 ID: <code>{user_id}</code>\n"
-            "💰 Баланс: <b>{balance} USD</b>\n"
-            "🌐 Язык: {lang}\n"
-            "🏆 Статус: <b>{status}</b>\n"
-            "📅 Дата регистрации: {reg_date}\n"
-            "👥 Рефералов: {ref_count}</blockquote>"
+            f"{E_PROFILE} <b>Профиль</b>\n\n"
+            f"<blockquote>🆔 ID: <code>{{user_id}}</code>\n"
+            f"{E_WALLET} Баланс: <b>{{balance}} USD</b>\n"
+            f"🌐 Язык: {{lang}}\n"
+            f"🏆 Статус: <b>{{status}}</b>\n"
+            f"📅 Регистрация: {{reg_date}}\n"
+            f"{E_REF} Рефералов: <b>{{ref_count}}</b></blockquote>"
         ),
         "ref_text": (
-            "🔗 <b>Реферальная система</b>\n\n"
-            "Твоя ссылка:\n<code>{ref_link}</code>\n\n"
-            "<blockquote>👥 Приглашено: <b>{ref_count}</b>\n"
-            "💰 Заработано: <b>{earned} USD</b> (10% с пополнений рефералов)</blockquote>"
+            f"{E_REF} <b>Реферальная система</b>\n\n"
+            f"Твоя ссылка:\n<code>{{ref_link}}</code>\n\n"
+            f"<blockquote>👥 Приглашено: <b>{{ref_count}}</b>\n"
+            f"{E_DOLLAR} Заработано: <b>{{earned}} USD</b> (10% с пополнений рефералов)</blockquote>"
         ),
-        "orders_history": "📋 <b>Мои заказы</b>",
-        "no_orders": "📭 <blockquote>У тебя пока нет заказов.</blockquote>",
-        "services_list": "📦 <b>Услуги:</b>\n\n<blockquote>Выбери услугу и нажми «Купить».</blockquote>",
-        "goods_list": "🛍 <b>Товар:</b>\n\n<blockquote>Выбери товар и нажми «Купить». Выдаётся автоматически.</blockquote>",
-        "empty_list": "📭 <blockquote>Пока пусто.</blockquote>",
+        "orders_history": f"{E_SERVICES} <b>Мои заказы</b>",
+        "no_orders": f"📭 <blockquote>У тебя пока нет заказов.</blockquote>",
+        "services_list": f"{E_SERVICES} <b>Услуги:</b>\n\n<blockquote>Выбери услугу и нажми «Купить».</blockquote>",
+        "goods_list": f"{E_CATALOG} <b>Товар:</b>\n\n<blockquote>Выбери товар и нажми «Купить». Выдаётся автоматически.</blockquote>",
+        "empty_list": f"📭 <blockquote>Пока пусто.</blockquote>",
         "order_created": (
-            "⏳ <b>Заказ создан!</b>\n\n"
-            "<blockquote>Ожидай выполнения. Если нужно что-то уточнить — напиши в чат по заказу.</blockquote>"
+            f"{E_CLOCK} <b>Заказ создан!</b>\n\n"
+            f"<blockquote>Ожидай выполнения. Если нужно что-то уточнить — напиши в чат по заказу.</blockquote>"
         ),
-        "goods_delivered": "🎁 <b>Товар выдан:</b>\n\n<blockquote>{content}</blockquote>",
-        "order_chat_prompt": "💬 <b>Чат по заказу #{order_id}</b>\n\n<blockquote>Напиши сообщение — админ увидит его и ответит.</blockquote>",
-        "order_chat_sent": "✅ <blockquote>Сообщение отправлено админу. Ожидай ответа.</blockquote>",
-        "admin_panel": "⚙️ <b>Админ-панель</b>",
-        "admin_enter_name": "📝 <b>Введи название:</b>",
-        "admin_enter_desc": "📝 <b>Введи описание:</b>",
-        "admin_enter_price": "💵 <b>Введи цену в USD:</b>",
-        "admin_enter_content": "📦 <b>Введи контент (для товара):</b>",
-        "admin_item_added": "✅ <b>Добавлено!</b>",
-        "admin_no_orders": "📭 <blockquote>Заказов нет.</blockquote>",
-        "admin_reject_reason": "✍️ <b>Введи причину отказа:</b>",
+        "goods_delivered": f"🎁 <b>Товар выдан:</b>\n\n<blockquote>{{content}}</blockquote>",
+        "order_chat_prompt": f"💬 <b>Чат по заказу #{{order_id}}</b>\n\n<blockquote>Напиши сообщение — админ увидит его и ответит.</blockquote>",
+        "order_chat_sent": f"{E_CHECK} <blockquote>Сообщение отправлено админу. Ожидай ответа.</blockquote>",
+        "admin_panel": f"{E_STATS} <b>Админ-панель</b>",
+        "admin_enter_name": f"📝 <b>Введи название:</b>",
+        "admin_enter_desc": f"📝 <b>Введи описание:</b>",
+        "admin_enter_price": f"{E_DOLLAR} <b>Введи цену в USD:</b>",
+        "admin_enter_content": f"📦 <b>Введи контент (для товара):</b>",
+        "admin_item_added": f"{E_CHECK} <b>Добавлено!</b>",
+        "admin_no_orders": f"📭 <blockquote>Заказов нет.</blockquote>",
+        "admin_reject_reason": f"✍️ <b>Введи причину отказа:</b>",
         "admin_stats_text": (
-            "📊 <b>Статистика</b>\n\n"
-            "<blockquote>👥 Юзеров: <b>{users}</b>\n"
-            "📦 Заказов: <b>{orders}</b>\n"
-            "💰 Оборот: <b>{turnover} USD</b></blockquote>"
+            f"{E_STATS} <b>Статистика</b>\n\n"
+            f"<blockquote>👥 Юзеров: <b>{{users}}</b>\n"
+            f"{E_SERVICES} Заказов: <b>{{orders}}</b>\n"
+            f"{E_DOLLAR} Оборот: <b>{{turnover}} USD</b></blockquote>"
         ),
-        "admin_broadcast_text": "📢 <b>Введи текст рассылки:</b>",
-        "admin_broadcast_sent": "✅ <blockquote>Отправлено <b>{count}</b> юзерам.</blockquote>",
-        "admin_promo_code": "🎟 <b>Введи код:</b>",
-        "admin_promo_amount": "💰 <b>Введи сумму бонуса:</b>",
-        "admin_promo_uses": "🔢 <b>Введи кол-во использований:</b>",
-        "admin_promo_added": "✅ <b>Промокод добавлен!</b>",
-        "promo_enter": "🎟 <b>Введи промокод:</b>",
-        "promo_success": "✅ <blockquote>Промокод активирован! <b>+{amount} USD</b></blockquote>",
-        "promo_invalid": "❌ <blockquote>Неверный или использованный промокод.</blockquote>",
-        "order_done_notify": "✅ <b>Твой заказ «{name}» выполнен!</b>",
-        "order_reject_notify": "❌ <b>Заказ «{name}» отклонён.</b>\n\n<blockquote>Причина: {reason}</blockquote>",
-        "already": "🚀 <b>Ты уже принял условия. Добро пожаловать!</b>",
+        "admin_broadcast_text": f"📢 <b>Введи текст рассылки:</b>",
+        "admin_broadcast_sent": f"{E_CHECK} <blockquote>Отправлено <b>{{count}}</b> юзерам.</blockquote>",
+        "admin_promo_code": f"🎟 <b>Введи код:</b>",
+        "admin_promo_amount": f"{E_DOLLAR} <b>Введи сумму бонуса:</b>",
+        "admin_promo_uses": f"🔢 <b>Введи кол-во использований:</b>",
+        "admin_promo_added": f"{E_CHECK} <b>Промокод добавлен!</b>",
+        "promo_enter": f"🎟 <b>Введи промокод:</b>",
+        "promo_success": f"{E_CHECK} <blockquote>Промокод активирован! <b>+{{amount}} USD</b></blockquote>",
+        "promo_invalid": f"{E_CROSS} <blockquote>Неверный или использованный промокод.</blockquote>",
+        "order_done_notify": f"{E_CHECK} <b>Твой заказ «{{name}}» выполнен!</b>",
+        "order_reject_notify": f"{E_CROSS} <b>Заказ «{{name}}» отклонён.</b>\n\n<blockquote>Причина: {{reason}}</blockquote>",
+        "already": f"{E_BOLT} <b>Ты уже принял условия. Добро пожаловать!</b>",
+        "insufficient": f"{E_CROSS} <b>Недостаточно средств.</b> Пополни баланс.",
+        "enter_amount": f"{E_DOLLAR} <b>Введи сумму в USD для пополнения:</b>",
+        "choose_payment": f"{E_WALLET} <b>Выбери способ оплаты:</b>",
+        "invoice_created": f"{E_CHECK} <b>Счёт создан!</b> Перейди по ссылке для оплаты:\n{{link}}",
+        "payment_error": f"{E_CROSS} <b>Ошибка создания счёта.</b> Попробуй позже.",
     }
 }
 
@@ -287,7 +317,6 @@ def admin_kb():
     return kb.as_markup()
 
 def admin_order_kb(order_id):
-    """Кнопки для админа по заказу: ответить, выполнено, не выполнено"""
     kb = InlineKeyboardBuilder()
     kb.button(text="💬 Ответить", callback_data=f"order_reply:{order_id}", style="primary")
     kb.button(text="✅ Выполнено", callback_data=f"order_done:{order_id}", style="success")
@@ -296,7 +325,6 @@ def admin_order_kb(order_id):
     return kb.as_markup()
 
 def order_chat_kb(order_id):
-    """Кнопка для юзера — написать в чат заказа"""
     kb = InlineKeyboardBuilder()
     kb.button(text="💬 Написать по заказу", callback_data=f"chat_order:{order_id}", style="primary")
     kb.button(text="◀️ В каталог", callback_data="menu_catalog")
@@ -368,7 +396,7 @@ async def cmd_start(message: Message, state: FSMContext):
         create_user(uid, referrer_id)
         user = get_user(uid)
 
-    if user[4]:  # accepted
+    if user[4]:
         if await check_sub(message.bot, uid):
             update_user(uid, subscribed=1)
             await send_menu(message.bot, message.chat.id, user[1])
@@ -423,7 +451,8 @@ async def on_back(callback: CallbackQuery):
 async def on_catalog(callback: CallbackQuery):
     user = get_user(callback.from_user.id)
     lang = user[1] if user else "ru"
-    await callback.message.edit_text(TEXTS[lang]["catalog"], reply_markup=catalog_kb())
+    await callback.message.delete()
+    await callback.message.answer(TEXTS[lang]["catalog"], reply_markup=catalog_kb())
     await callback.answer()
 
 # ===== ПРОФИЛЬ =====
@@ -443,7 +472,8 @@ async def on_profile(callback: CallbackQuery):
         reg_date=user[6][:10] if user[6] else "—",
         ref_count=ref_count
     )
-    await callback.message.edit_text(text, reply_markup=profile_kb())
+    await callback.message.delete()
+    await callback.message.answer(text, reply_markup=profile_kb())
     await callback.answer()
 
 # ===== ПОПОЛНЕНИЕ =====
@@ -462,13 +492,13 @@ async def on_amount(message: Message, state: FSMContext):
         if amount <= 0:
             raise ValueError
     except:
-        await message.answer("⚠️ <b>Введи корректную сумму</b> (число больше 0):")
+        await message.answer(f"{E_CROSS} <b>Введи корректную сумму</b> (число больше 0):")
         return
     await state.update_data(amount=amount)
     user = get_user(message.from_user.id)
     lang = user[1] if user else "ru"
     await message.answer(
-        f"💵 <b>Сумма:</b> {amount} USD\n\n{TEXTS[lang]['choose_payment']}",
+        f"{E_DOLLAR} <b>Сумма:</b> {amount} USD\n\n{TEXTS[lang]['choose_payment']}",
         reply_markup=payment_method_kb()
     )
 
@@ -536,7 +566,8 @@ async def on_refs(callback: CallbackQuery):
     ref_link = f"https://t.me/VelsoShopBot?start=ref_{uid}"
     earned = ref_count * 0
     text = TEXTS[lang]["ref_text"].format(ref_link=ref_link, ref_count=ref_count, earned=earned)
-    await callback.message.edit_text(text, reply_markup=back_kb())
+    await callback.message.delete()
+    await callback.message.answer(text, reply_markup=back_kb())
     await callback.answer()
 
 # ===== УСЛУГИ / ТОВАР =====
@@ -601,7 +632,7 @@ async def on_buy(callback: CallbackQuery):
         return
     name, price, content = item
     if user[2] < price:
-        await callback.answer("❌ Недостаточно средств. Пополни баланс.", show_alert=True)
+        await callback.answer(TEXTS[lang]["insufficient"], show_alert=True)
         return
     add_balance(uid, -price)
     if item_type == "goods":
@@ -626,7 +657,7 @@ async def on_buy(callback: CallbackQuery):
                 f"🆕 <b>Новый заказ #{order_id}</b>\n\n"
                 f"<blockquote>👤 Юзер: <code>{uid}</code>\n"
                 f"📦 Услуга: <b>{name}</b>\n"
-                f"💰 Цена: <b>{price} USD</b></blockquote>\n\n"
+                f"{E_DOLLAR} Цена: <b>{price} USD</b></blockquote>\n\n"
                 f"Нажми «💬 Ответить», чтобы написать юзеру.",
                 reply_markup=admin_order_kb(order_id)
             )
@@ -663,7 +694,6 @@ async def on_order_chat_message(message: Message, state: FSMContext):
 
     save_order_message(order_id, uid, text)
 
-    # Пересылаем админу
     try:
         await message.bot.send_message(
             ADMIN_ID,
@@ -715,9 +745,9 @@ async def on_admin_reply(message: Message, state: FSMContext):
             )
         except:
             pass
-        await message.answer(f"✅ Ответ отправлен юзеру по заказу #{order_id}.")
+        await message.answer(f"{E_CHECK} Ответ отправлен юзеру по заказу #{order_id}.")
     else:
-        await message.answer("❌ Заказ не найден.")
+        await message.answer(f"{E_CROSS} Заказ не найден.")
     await state.clear()
 
 # ===== АДМИНКА =====
@@ -770,7 +800,7 @@ async def admin_item_step(message: Message, state: FSMContext):
             except:
                 pass
         await state.clear()
-        await message.answer(f"❌ Заказ #{order_id} отклонён. Причина: {reason}")
+        await message.answer(f"{E_CROSS} Заказ #{order_id} отклонён. Причина: {reason}")
         return
 
     if step == "name":
@@ -783,7 +813,7 @@ async def admin_item_step(message: Message, state: FSMContext):
         try:
             price = float(message.text.replace(",", "."))
         except:
-            await message.answer("⚠️ Введи число:")
+            await message.answer(f"{E_CROSS} Введи число:")
             return
         await state.update_data(price=price, step="content")
         await message.answer(TEXTS["ru"]["admin_enter_content"])
@@ -811,16 +841,16 @@ async def admin_orders(callback: CallbackQuery):
     if not orders:
         await callback.message.edit_text(TEXTS["ru"]["admin_no_orders"], reply_markup=back_kb())
     else:
-        text = "📋 <b>Заказы в ожидании:</b>\n\n"
+        text = f"{E_SERVICES} <b>Заказы в ожидании:</b>\n\n"
         for o in orders:
             text += f"#{o[0]} | {o[1]} | {o[2]} | {o[3]} USD\n"
         for o in orders:
             await callback.bot.send_message(
                 ADMIN_ID,
-                f"📋 <b>Заказ #{o[0]}</b>\n\n"
+                f"{E_SERVICES} <b>Заказ #{o[0]}</b>\n\n"
                 f"<blockquote>👤 Юзер: <code>{o[1]}</code>\n"
                 f"📦 Товар: <b>{o[2]}</b>\n"
-                f"💰 Цена: <b>{o[3]} USD</b></blockquote>",
+                f"{E_DOLLAR} Цена: <b>{o[3]} USD</b></blockquote>",
                 reply_markup=admin_order_kb(o[0])
             )
         await callback.message.edit_text(text, reply_markup=back_kb())
@@ -846,7 +876,7 @@ async def order_done(callback: CallbackQuery):
             )
         except:
             pass
-    await callback.message.edit_text(f"✅ Заказ #{order_id} выполнен.")
+    await callback.message.edit_text(f"{E_CHECK} Заказ #{order_id} выполнен.")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("order_reject:"))
@@ -922,7 +952,7 @@ async def admin_promo_step(message: Message, state: FSMContext):
         try:
             amount = float(message.text.replace(",", "."))
         except:
-            await message.answer("⚠️ Введи число:")
+            await message.answer(f"{E_CROSS} Введи число:")
             return
         await state.update_data(amount=amount, step="uses")
         await message.answer(TEXTS["ru"]["admin_promo_uses"])
@@ -930,7 +960,7 @@ async def admin_promo_step(message: Message, state: FSMContext):
         try:
             uses = int(message.text)
         except:
-            await message.answer("⚠️ Введи целое число:")
+            await message.answer(f"{E_CROSS} Введи целое число:")
             return
         data = await state.get_data()
         conn = sqlite3.connect(DB_PATH)
@@ -988,7 +1018,7 @@ async def my_orders(callback: CallbackQuery):
         await callback.message.edit_text(TEXTS[lang]["no_orders"], reply_markup=back_kb())
     else:
         text = TEXTS[lang]["orders_history"] + "\n\n"
-        status_map = {"pending": "⏳ В обработке", "completed": "✅ Выполнено", "rejected": "❌ Отклонено"}
+        status_map = {"pending": f"{E_CLOCK} В обработке", "completed": f"{E_CHECK} Выполнено", "rejected": f"{E_CROSS} Отклонено"}
         for o in orders:
             text += f"• <b>{o[0]}</b> — {o[1]} USD — {status_map.get(o[2], o[2])} ({o[3][:10]})\n"
         await callback.message.edit_text(text, reply_markup=back_kb())
