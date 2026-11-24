@@ -510,17 +510,41 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
     uid = callback.from_user.id
     user = get_user(uid)
     lang = user[1] if user else "ru"
-    try:
-        if method == "xrocket":
+
+    if method == "xrocket":
+        try:
             from aiorocket2 import xRocketClient
             client = xRocketClient(api_key=XROCKET_TOKEN)
             invoice = await client.create_invoice(
-                amount=amount, min_payment=0, num_payments=1,
+                currency="USDT",
+                amount=amount,
+                min_payment=0,
+                num_payments=1,
                 description=f"Пополнение Velso Shop на {amount} USD",
                 hidden_message="Спасибо за оплату!"
             )
             link = invoice.link
-        elif method == "cryptobot":
+            invoice_id = invoice.id
+
+            await state.update_data(xrocket_invoice_id=invoice_id, xrocket_amount=amount)
+
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Перейти к оплате", url=link)],
+                [InlineKeyboardButton(text="✅ Проверить оплату", callback_data="check_xrocket_pay", style="success")]
+            ])
+            await callback.message.edit_text(
+                f"{E_DOLLAR} <b>Сумма:</b> {amount} USD\n\n"
+                f"Нажми «Перейти к оплате», оплати счёт, затем нажми «Проверить оплату».",
+                reply_markup=kb
+            )
+        except Exception as e:
+            logging.error(f"xRocket create invoice error: {e}")
+            await callback.message.edit_text(TEXTS[lang]["payment_error"])
+        await callback.answer()
+        return
+
+    if method == "cryptobot":
+        try:
             from async_crypto_pay_api import CryptoPayApi
             from async_crypto_pay_api.models import CurrencyType, FiatAsset
             crypto = CryptoPayApi(CRYPTOBOT_TOKEN)
@@ -531,17 +555,48 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
                     description=f"Пополнение Velso Shop на {amount} USD"
                 )
                 link = invoice.bot_invoice_url
+            await callback.message.edit_text(
+                TEXTS[lang]["invoice_created"].format(link=link),
+                disable_web_page_preview=True
+            )
+            await state.clear()
+        except Exception as e:
+            logging.error(f"CryptoBot error: {e}")
+            await callback.message.edit_text(TEXTS[lang]["payment_error"])
+        await callback.answer()
+        return
+
+@dp.callback_query(F.data == "check_xrocket_pay")
+async def on_check_xrocket_pay(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    invoice_id = data.get("xrocket_invoice_id")
+    amount = data.get("xrocket_amount", 0)
+    uid = callback.from_user.id
+
+    if not invoice_id:
+        await callback.answer("Счёт не найден. Создай заново.", show_alert=True)
+        return
+
+    try:
+        from aiorocket2 import xRocketClient
+        client = xRocketClient(api_key=XROCKET_TOKEN)
+        invoice = await client.get_invoice(invoice_id=invoice_id)
+
+        if invoice.status == "paid":
+            add_balance(uid, amount)
+            await state.clear()
+            await callback.message.edit_text(
+                f"{E_CHECK} <b>Оплата подтверждена!</b>\n\n"
+                f"{E_WALLET} Баланс пополнен на <b>{amount} USD</b>."
+            )
+            await callback.answer("✅ Баланс пополнен!")
+        elif invoice.status == "active":
+            await callback.answer("⏳ Оплата ещё не поступила. Попробуй через минуту.", show_alert=True)
         else:
-            return
-        await callback.message.edit_text(
-            TEXTS[lang]["invoice_created"].format(link=link),
-            disable_web_page_preview=True
-        )
-        await state.clear()
+            await callback.answer(f"Статус счёта: {invoice.status}. Попробуй позже.", show_alert=True)
     except Exception as e:
-        logging.error(f"Payment error: {e}")
-        await callback.message.edit_text(TEXTS[lang]["payment_error"])
-    await callback.answer()
+        logging.error(f"xRocket check error: {e}")
+        await callback.answer("Ошибка проверки. Попробуй позже.", show_alert=True)
 
 @dp.callback_query(F.data == "cancel_topup")
 async def on_cancel_topup(callback: CallbackQuery, state: FSMContext):
