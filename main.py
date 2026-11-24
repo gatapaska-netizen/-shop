@@ -19,7 +19,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 # ===== ТОКЕНЫ =====
 BOT_TOKEN = "9000723536:AAGmJnuXkq66ZU3dbOjT03Y83T-YaflKEdc"
-XROCKET_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMxMDkwMSIsImp0aSI6ImFwcDozMTA5MDE6YmFjNmUwNjQtY2UwNi00ZjE0LTkxYmUtZThiNGFmZWRhM2M3IiwiaWF0IjoxNzk1NDc5NTM2fQ.U2uPV6sNohCA_9J7RkE4DWYxwewSKbRo3KChZ0U3928"
+XROCKET_TOKEN = "6579e0fdefa8363402b96527b"
 CRYPTOBOT_TOKEN = "685556:AASZ3wmOPUPdP7otbBXgHIyshMkUGWN5rKo"
 ADMIN_ID = 8827334252
 CHANNEL_ID = "@VelsoShopInfo"
@@ -522,6 +522,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
             )
             link = invoice.link
             invoice_id = invoice.id
+            logging.info(f"xRocket invoice created: id={invoice_id}, link={link}")
             await state.update_data(pay_method="xrocket", pay_invoice_id=invoice_id, pay_amount=amount)
 
             pay_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -546,6 +547,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
                 )
                 link = invoice.bot_invoice_url
                 invoice_id = invoice.invoice_id
+                logging.info(f"CryptoBot invoice created: id={invoice_id}, link={link}")
             await state.update_data(pay_method="cryptobot", pay_invoice_id=invoice_id, pay_amount=amount)
 
             pay_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -560,7 +562,7 @@ async def on_pay_method(callback: CallbackQuery, state: FSMContext):
         else:
             return
     except Exception as e:
-        logging.error(f"Payment error: {e}")
+        logging.error(f"Payment error: {e}", exc_info=True)
         await callback.message.edit_text(TEXTS[lang]["payment_error"])
     await callback.answer()
 
@@ -581,14 +583,19 @@ async def on_check_pay(callback: CallbackQuery, state: FSMContext):
             from aiorocket2 import xRocketClient
             client = xRocketClient(api_key=XROCKET_TOKEN)
             invoice = await client.get_invoice(invoice_id=invoice_id)
+            logging.info(f"xRocket check: id={invoice_id}, status={invoice.status}")
             paid = invoice.status == "paid"
             status = invoice.status
+
         elif method == "cryptobot":
             from async_crypto_pay_api import CryptoPayApi
             crypto = CryptoPayApi(CRYPTOBOT_TOKEN)
             async with crypto:
                 invoices = await crypto.get_invoices(invoice_ids=[invoice_id])
+                logging.info(f"CryptoBot check: id={invoice_id}, response={invoices}")
                 inv = invoices[0] if invoices else None
+                if inv:
+                    logging.info(f"CryptoBot invoice status={inv.status}, id={inv.invoice_id}")
                 paid = inv is not None and inv.status == "paid"
                 status = inv.status if inv else "not found"
         else:
@@ -608,7 +615,7 @@ async def on_check_pay(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.answer(f"Статус счёта: {status}. Попробуй позже.", show_alert=True)
     except Exception as e:
-        logging.error(f"check_pay error: {e}")
+        logging.error(f"check_pay error: {e}", exc_info=True)
         await callback.answer("Ошибка проверки. Попробуй позже.", show_alert=True)
 
 @dp.callback_query(F.data == "cancel_topup")
